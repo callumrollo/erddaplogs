@@ -12,4 +12,4 @@ The jupyter notebook performs the following steps:
 
 A blog post explaining this notebook in more detail can be found at [https://callumrollo.com/weblogparse.html](https://callumrollo.com/weblogparse.html)
 
-This project is licensed under MIT. It alsmost certainly contains errors!
+This project is licensed under MIT. It almost certainly contains errors!
