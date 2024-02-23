@@ -188,31 +188,27 @@ class ErddapLogParser:
 
     @_print_filter_stats
     def filter_non_erddap(self):
-        df = self.df
         self.filter_name = "non erddap"
-        df = df.filter(
+        self.df = self.df.filter(
             pl.col("url").str.contains("erddap")
         )
-        self.df = df
 
     @_print_filter_stats
     def filter_organisations(self,
                              organisations=("Google", "Crawlers", "SEMrush")):
-        df = self.df
-        if not 'org' in df.columns:
+        if not 'org' in self.df.columns:
             raise ValueError(
                 f"Organisation information not present in DataFrame. Try running get_ip_info first.",
             )
-        df = df.with_columns(pl.col("org").fill_null("unknown"))
-        df = df.with_columns(pl.col("isp").fill_null("unknown"))
+        self.df = self.df.with_columns(pl.col("org").fill_null("unknown"))
+        self.df = self.df.with_columns(pl.col("isp").fill_null("unknown"))
         for block_org in organisations:
-            df = df.filter(
+            self.df = self.df.filter(
                 ~pl.col("org").str.contains(f"(?i){block_org}")
             )
-            df = df.filter(
+            self.df = self.df.filter(
                 ~pl.col("isp").str.contains(f"(?i){block_org}")
             )
-        self.df = df
         self.filter_name = "organisations"
 
     @_print_filter_stats
@@ -224,57 +220,47 @@ class ErddapLogParser:
             bots = ["bot", "Googlebot", "Bingbot", "spider", "Yandex", "Crawl", "SEMRush", "zh-CN", "zh_CN",
                     "LieBaoFast", "MicroMessenger", "Kinza", "OPPO A33", "Aspeigel", "PetalBot", "Yeti", "QQBrowser",
                     "slurp", "TheWorld", "GoogleOther", "loc.gov", "scrapy", "Mb2345Browser"]
-        df = self.df
         for bot in bots:
-            df = df.filter(
+            self.df = self.df.filter(
                 ~pl.col("user-agent").str.contains(f"(?i){bot}")
             )
-        self.df = df
         self.filter_name = "user agents"
 
     @_print_filter_stats
     def filter_locales(self, locales=("zh-CN", "zh-TW", "ZH")):
         # Added by S.Ouertani Jan 2024
-        df = self.df
         for locale in locales:
-            df = df.filter(
+            self.df = self.df.filter(
                 ~pl.col("url").str.contains(f"{locale}")
             )
-        self.df = df
         self.filter_name = 'locales'
 
     @_print_filter_stats
     def filter_spam(self,
                     spam_strings=(".env", "env.", ".php", ".git", "robots.txt", "phpinfo", "/config", "aws", ".xml")
                     ):
-        df = self.df
-        page_counts = Counter(list(df.select("url").to_numpy()[:, 0])).most_common()
+        page_counts = Counter(list(self.df.select("url").to_numpy()[:, 0])).most_common()
         bad_pages = []
         for page, count in page_counts:
             for phrase in spam_strings:
                 if phrase in page:
                     bad_pages.append(page)
-        df = df.filter(~pl.col('url').is_in(bad_pages))
-        self.df = df
+        self.df = self.df.filter(~pl.col('url').is_in(bad_pages))
         self.filter_name = 'spam'
 
     @_print_filter_stats
     def filter_files(self):
-        df = self.df
-        df = df.filter(
+        self.df = self.df.filter(
             ~pl.col("url").str.contains("/files")
         )
-        self.df = df
         self.filter_name = 'files'
 
     @_print_filter_stats
     def filter_common_strings(self, strings=('/version', 'favicon.ico', '.js', '.css', '/erddap/images')):
-        df = self.df
         for string in strings:
-            df = df.filter(
+            self.df = self.df.filter(
                 ~pl.col("url").str.contains(string)
             )
-        self.df = df
         self.filter_name = 'common files'
 
     def undo_filter(self):
