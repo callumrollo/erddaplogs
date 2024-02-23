@@ -10,7 +10,7 @@ import gzip
 
 
 def _load_apache_logs(apache_logs_dir):
-    apache_logs = list(Path(apache_logs_dir).glob("*access*"))
+    apache_logs = list(Path(apache_logs_dir).glob("*access.log*"))
     if len(apache_logs) == 0:
         raise ValueError(
             f"Supplied directory {apache_logs_dir} contains no access.log files",
@@ -164,6 +164,8 @@ class ErddapLogParser:
     def get_ip_info(self,
                     ip_info_csv="ip.csv",
                     download_new=True):
+        if "country" in self.df.columns:
+            return
         df_ip = _get_ip_info(self.df, ip_info_csv, download_new=download_new, verbose=self.verbose)
         df_pd_ip = pd.merge(self.df.to_pandas(), df_ip, left_on="ip", right_on="query", how="left")
         ip_grid = df_pd_ip.ip.str.split(".", expand=True)
@@ -188,6 +190,10 @@ class ErddapLogParser:
     def filter_organisations(self,
                              organisations=("Google", "Crawlers", "SEMrush")):
         df = self.df
+        if not 'org' in df.columns:
+            raise ValueError(
+                f"Organisation information not present in DataFrame. Try running get_ip_info first.",
+            )
         df = df.with_columns(pl.col("org").fill_null("unknown"))
         df = df.with_columns(pl.col("isp").fill_null("unknown"))
         len_before = len(df)
@@ -209,10 +215,8 @@ class ErddapLogParser:
         # Added by S.Ouertani Jan 2024
         if bots is None:
             bots = ["bot", "Googlebot", "Bingbot", "spider", "Yandex", "Crawl", "SEMRush", "zh-CN", "zh_CN",
-                    "Mb2345Browser",
                     "LieBaoFast", "MicroMessenger", "Kinza", "OPPO A33", "Aspeigel", "PetalBot", "Yeti", "QQBrowser",
-                    "slurp", "TheWorld",
-                    "GoogleOther", "loc.gov", "scrapy"]
+                    "slurp", "TheWorld", "GoogleOther", "loc.gov", "scrapy", "Mb2345Browser"]
         df = self.df
         len_before = len(df)
         for bot in bots:
@@ -264,6 +268,19 @@ class ErddapLogParser:
         if self.verbose:
             print(f"Filter files dropped {len_before - len(df)} lines")
             print(f"Length of dataset is now {int(len(df) / self.original_total_requests * 100)} % of original")
+
+    def filter_common_strings(self, strings=('/version', 'favicon.ico', '.js', '.css', '/erddap/images')):
+        df = self.df
+        len_before = len(df)
+        for string in strings:
+            df = df.filter(
+                ~pl.col("url").str.contains(string)
+            )
+        self.df = df
+        if self.verbose:
+            print(f"Filter common strings dropped {len_before - len(df)} lines")
+            print(f"Length of dataset is now {int(len(df) / self.original_total_requests * 100)} % of original")
+
 
     def undo_filter(self):
         if self.verbose:
