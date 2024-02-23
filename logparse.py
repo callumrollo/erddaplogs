@@ -109,6 +109,16 @@ def _get_ip_info(df, ip_info_csv, download_new=True, verbose=False):
     return df_ip
 
 
+def _print_filter_stats(call_wrap):
+    def magic(self):
+        len_before = len(self.df)
+        call_wrap(self)
+        if self.verbose:
+            print(f"Filter {self.filter_name} dropped {len_before - len(self.df)} lines. Length of dataset is now "
+                  f"{int(len(self.df) / self.original_total_requests * 100)} % of original")
+    return magic
+
+
 class ErddapLogParser:
     def __init__(self):
         self.df = pl.DataFrame()
@@ -117,14 +127,6 @@ class ErddapLogParser:
         self.original_total_requests = 0
         self.filter_name = None
 
-    def _print_filter_stats(call_wrap):
-        def magic(self):
-            len_before = len(self.df)
-            call_wrap(self)
-            if self.verbose:
-                print(f"Filter {self.filter_name} dropped {len_before - len(self.df)} lines. Length of dataset is now "
-                      f"{int(len(self.df) / self.original_total_requests * 100)} % of original")
-        return magic
 
     def _update_original_total_requests(self):
         self.original_total_requests = len(self.df)
@@ -132,8 +134,8 @@ class ErddapLogParser:
         if self.verbose:
             print(f'DataFrame now has {self.original_total_requests} lines')
 
-    def subset_df(self, entries=100):
-        stride = int(self.df.shape[0] / entries)
+    def subset_df(self, rows=1000):
+        stride = int(self.df.shape[0] / rows)
         if self.verbose:
             print(f'starting from DataFrame with {self.df.shape[0]} lines. Subsetting by a factor of {stride}')
         self.df = self.df.gather_every(stride)
@@ -196,7 +198,7 @@ class ErddapLogParser:
     @_print_filter_stats
     def filter_organisations(self,
                              organisations=("Google", "Crawlers", "SEMrush")):
-        if not 'org' in self.df.columns:
+        if 'org' not in self.df.columns:
             raise ValueError(
                 f"Organisation information not present in DataFrame. Try running get_ip_info first.",
             )
@@ -215,7 +217,7 @@ class ErddapLogParser:
     def filter_user_agents(self,
                            bots=None,
                            ):
-        # Added by S.Ouertani Jan 2024
+        # Added by Samantha Ouertani at NOAA AOML Jan 2024
         if bots is None:
             bots = ["bot", "Googlebot", "Bingbot", "spider", "Yandex", "Crawl", "SEMRush", "zh-CN", "zh_CN",
                     "LieBaoFast", "MicroMessenger", "Kinza", "OPPO A33", "Aspeigel", "PetalBot", "Yeti", "QQBrowser",
@@ -228,7 +230,7 @@ class ErddapLogParser:
 
     @_print_filter_stats
     def filter_locales(self, locales=("zh-CN", "zh-TW", "ZH")):
-        # Added by S.Ouertani Jan 2024
+        # Added by Samantha Ouertani at NOAA AOML Jan 2024
         for locale in locales:
             self.df = self.df.filter(
                 ~pl.col("url").str.contains(f"{locale}")
@@ -250,6 +252,7 @@ class ErddapLogParser:
 
     @_print_filter_stats
     def filter_files(self):
+        # Added by Samantha Ouertani at NOAA AOML Jan 2024
         self.df = self.df.filter(
             ~pl.col("url").str.contains("/files")
         )
@@ -261,7 +264,7 @@ class ErddapLogParser:
             self.df = self.df.filter(
                 ~pl.col("url").str.contains(string)
             )
-        self.filter_name = 'common files'
+        self.filter_name = 'common strings'
 
     def undo_filter(self):
         if self.verbose:
