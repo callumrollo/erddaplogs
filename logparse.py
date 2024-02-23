@@ -100,7 +100,10 @@ def _get_ip_info(df, ip_info_csv, download_new=True, verbose=False):
                     break
                 resp = resp_raw.json()
                 if verbose:
-                    print(f"New ip identified: {ip} in {resp['country']}. Visited {count} times")
+                    if 'country' in resp.keys():
+                        print(f"New ip identified: {ip} in {resp['country']}. Sent {count} requests")
+                    else:
+                        print(f"New ip identified: {ip}. Sent {count} requests")
                 df_ip = pd.concat((df_ip, pd.DataFrame(resp, index=[0])), ignore_index=True)
     df_ip = df_ip.dropna(subset='country')
     df_ip.to_csv(ip_info_csv, index=False)
