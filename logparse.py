@@ -115,6 +115,16 @@ class ErddapLogParser:
         self.ip = pl.DataFrame()
         self.verbose = False
         self.original_total_requests = 0
+        self.filter_name = None
+
+    def _print_filter_stats(call_wrap):
+        def magic(self):
+            len_before = len(self.df)
+            call_wrap(self)
+            if self.verbose:
+                print(f"Filter {self.filter_name} dropped {len_before - len(self.df)} lines. Length of dataset is now "
+                      f"{int(len(self.df) / self.original_total_requests * 100)} % of original")
+        return magic
 
     def _update_original_total_requests(self):
         self.original_total_requests = len(self.df)
@@ -176,17 +186,16 @@ class ErddapLogParser:
         self.df = pl.from_pandas(df_pd_ip).sort("datetime")
         self.ip = df_ip
 
+    @_print_filter_stats
     def filter_non_erddap(self):
         df = self.df
-        len_before = len(df)
+        self.filter_name = "non erddap"
         df = df.filter(
             pl.col("url").str.contains("erddap")
         )
         self.df = df
-        if self.verbose:
-            print(f"Filter non-erddap dropped {len_before - len(df)} lines")
-            print(f"Length of dataset is now {int(len(df) / self.original_total_requests * 100)} % of original")
 
+    @_print_filter_stats
     def filter_organisations(self,
                              organisations=("Google", "Crawlers", "SEMrush")):
         df = self.df
@@ -196,7 +205,6 @@ class ErddapLogParser:
             )
         df = df.with_columns(pl.col("org").fill_null("unknown"))
         df = df.with_columns(pl.col("isp").fill_null("unknown"))
-        len_before = len(df)
         for block_org in organisations:
             df = df.filter(
                 ~pl.col("org").str.contains(f"(?i){block_org}")
@@ -205,10 +213,9 @@ class ErddapLogParser:
                 ~pl.col("isp").str.contains(f"(?i){block_org}")
             )
         self.df = df
-        if self.verbose:
-            print(f"Filter organisations dropped {len_before - len(df)} lines")
-            print(f"Length of dataset is now {int(len(df) / self.original_total_requests * 100)} % of original")
+        self.filter_name = "organisations"
 
+    @_print_filter_stats
     def filter_user_agents(self,
                            bots=None,
                            ):
@@ -218,34 +225,29 @@ class ErddapLogParser:
                     "LieBaoFast", "MicroMessenger", "Kinza", "OPPO A33", "Aspeigel", "PetalBot", "Yeti", "QQBrowser",
                     "slurp", "TheWorld", "GoogleOther", "loc.gov", "scrapy", "Mb2345Browser"]
         df = self.df
-        len_before = len(df)
         for bot in bots:
             df = df.filter(
                 ~pl.col("user-agent").str.contains(f"(?i){bot}")
             )
         self.df = df
-        if self.verbose:
-            print(f"Filter user agents dropped {len_before - len(df)} lines")
-            print(f"Length of dataset is now {int(len(df) / self.original_total_requests * 100)} % of original")
+        self.filter_name = "user agents"
 
+    @_print_filter_stats
     def filter_locales(self, locales=("zh-CN", "zh-TW", "ZH")):
         # Added by S.Ouertani Jan 2024
         df = self.df
-        len_before = len(df)
         for locale in locales:
             df = df.filter(
                 ~pl.col("url").str.contains(f"{locale}")
             )
         self.df = df
-        if self.verbose:
-            print(f"Filter locales dropped {len_before - len(df)} lines")
-            print(f"Length of dataset is now {int(len(df) / self.original_total_requests * 100)} % of original")
+        self.filter_name = 'locales'
 
+    @_print_filter_stats
     def filter_spam(self,
                     spam_strings=(".env", "env.", ".php", ".git", "robots.txt", "phpinfo", "/config", "aws", ".xml")
                     ):
         df = self.df
-        len_before = len(df)
         page_counts = Counter(list(df.select("url").to_numpy()[:, 0])).most_common()
         bad_pages = []
         for page, count in page_counts:
@@ -254,33 +256,26 @@ class ErddapLogParser:
                     bad_pages.append(page)
         df = df.filter(~pl.col('url').is_in(bad_pages))
         self.df = df
-        if self.verbose:
-            print(f"Filter spam dropped {len_before - len(df)} lines")
-            print(f"Length of dataset is now {int(len(df) / self.original_total_requests * 100)} % of original")
+        self.filter_name = 'spam'
 
+    @_print_filter_stats
     def filter_files(self):
         df = self.df
-        len_before = len(df)
         df = df.filter(
             ~pl.col("url").str.contains("/files")
         )
         self.df = df
-        if self.verbose:
-            print(f"Filter files dropped {len_before - len(df)} lines")
-            print(f"Length of dataset is now {int(len(df) / self.original_total_requests * 100)} % of original")
+        self.filter_name = 'files'
 
+    @_print_filter_stats
     def filter_common_strings(self, strings=('/version', 'favicon.ico', '.js', '.css', '/erddap/images')):
         df = self.df
-        len_before = len(df)
         for string in strings:
             df = df.filter(
                 ~pl.col("url").str.contains(string)
             )
         self.df = df
-        if self.verbose:
-            print(f"Filter common strings dropped {len_before - len(df)} lines")
-            print(f"Length of dataset is now {int(len(df) / self.original_total_requests * 100)} % of original")
-
+        self.filter_name = 'common files'
 
     def undo_filter(self):
         if self.verbose:
