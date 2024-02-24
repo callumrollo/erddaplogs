@@ -1,7 +1,6 @@
 from copy import copy
 from apachelogs import LogParser
 from pathlib import Path
-import pandas as pd
 import polars as pl
 from collections import Counter
 import requests
@@ -29,15 +28,9 @@ def _load_apache_logs(apache_logs_dir):
                 url.append(this_url)
                 ua.append(entry.headers_in["User-Agent"])
                 code.append(entry.final_status)
-    df_pd = pd.DataFrame({"ip": ip, "datetime": dt, "url": url, "user-agent": ua, "status-code": code})
-    df_pd["datetime"] = pd.to_datetime(df_pd.datetime).dt.tz_localize(None)
-    df_apache = pl.from_pandas(df_pd)
-    df_apache = df_apache.sort(by="datetime")
-    s = df_apache.select("datetime")[:, 0]
-    seconds = (s.cast(int) // 1_000).cast(pl.Datetime).dt.cast_time_unit("us")
-    df_apache.drop("datetime")
-    df_apache = df_apache.with_columns(pl.Series(name="datetime", values=seconds))
-    return df_apache
+    df = pl.DataFrame({"ip": ip, "datetime": dt, "url": url, "user-agent": ua, "status-code": code})
+
+    return df
 
 
 def _load_nginx_logs(nginx_logs_dir):
@@ -70,30 +63,42 @@ def _load_nginx_logs(nginx_logs_dir):
                 method.append(data.group(6))
         logfile.close()
 
-    df_pd = pd.DataFrame(
+    df = pl.DataFrame(
         {"ip": ip, "datetimestring": datetimestring, "url": url, "user-agent": useragent, "status-code": status})
-    df_pd['status-code'] = df_pd['status-code'].astype(int)
+    df = df.with_columns(pl.col('status-code').cast(pl.Int64))
     # convert timestamp to datetime
-    df = pl.from_pandas(df_pd)
     df = df.with_columns(
         pl.col("datetimestring").str.strptime(pl.Datetime, format="%d/%b/%Y:%H:%M:%S +0000"))
     df = df.rename({"datetimestring": "datetime"})
+    df = df.with_columns(
+        pl.col('datetime').cast(pl.Datetime).dt.replace_time_zone("UTC")
+    )
     df_nginx = df.sort(by="datetime")
     return df_nginx
 
 
 def _get_ip_info(df, ip_info_csv, download_new=True, verbose=False):
-    df_pd = df.to_pandas()
-    ip_counts = Counter(df_pd.ip).most_common()
-    if verbose:
-        print(f"found {len(ip_counts)} unique visitors")
+    ip_counts = Counter(df['ip']).most_common()
     if Path(ip_info_csv).exists():
-        df_ip = pd.read_csv(ip_info_csv)
+        df_ip = pl.read_csv(ip_info_csv)
     else:
-        df_ip = pd.DataFrame({"query": [None]})
+        df_ip = pl.DataFrame({'status': '',
+                              'country': '',
+                              'countryCode': '',
+                              'region': '',
+                              'regionName': '',
+                              'city': '',
+                              'zip': '',
+                              'lat': 0.0,
+                              'lon': 0.0,
+                              'timezone': '',
+                              'isp': '',
+                              'org': '',
+                              'as': '',
+                              'query': ''})
     if download_new:
-        for ip, count in ip_counts:
-            if ip not in df_ip["query"].values:
+        for ip, count in ip_counts[:5]:
+            if ip not in df_ip["query"]:
                 resp_raw = requests.get(f"http://ip-api.com/json/{ip}")
                 if resp_raw.status_code == 429:
                     print("Exceeded API responses. Wait a minute and try again")
@@ -104,9 +109,12 @@ def _get_ip_info(df, ip_info_csv, download_new=True, verbose=False):
                         print(f"New ip identified: {ip} in {resp['country']}. Sent {count} requests")
                     else:
                         print(f"New ip identified: {ip}. Sent {count} requests")
-                df_ip = pd.concat((df_ip, pd.DataFrame(resp, index=[0])), ignore_index=True)
-    df_ip = df_ip.dropna(subset='country')
-    df_ip.to_csv(ip_info_csv, index=False)
+                df_ip = pl.concat((df_ip, pl.DataFrame(resp)))
+    df_ip = df_ip.filter(
+        ~pl.col("country").is_null()
+    )
+    df_ip = df_ip.filter(pl.col('country') != "")
+    df_ip.write_csv(ip_info_csv)
     if verbose:
         print(f"We have info on {len(df_ip)} ip address")
     return df_ip
@@ -129,7 +137,6 @@ class ErddapLogParser:
         self.verbose = False
         self.original_total_requests = 0
         self.filter_name = None
-
 
     def _update_original_total_requests(self):
         self.original_total_requests = len(self.df)
@@ -182,14 +189,8 @@ class ErddapLogParser:
         if "country" in self.df.columns:
             return
         df_ip = _get_ip_info(self.df, ip_info_csv, download_new=download_new, verbose=self.verbose)
-        df_pd_ip = pd.merge(self.df.to_pandas(), df_ip, left_on="ip", right_on="query", how="left")
-        ip_grid = df_pd_ip.ip.str.split(".", expand=True)
-        ip_root = ip_grid[0] + "." + ip_grid[1]
-        ip_group = ip_grid[0] + "." + ip_grid[1] + "." + ip_grid[2]
-        df_pd_ip["ip_root"] = ip_root
-        df_pd_ip["ip_group"] = ip_group
-        self.df = pl.from_pandas(df_pd_ip).sort("datetime")
         self.ip = df_ip
+        self.df = self.df.join(df_ip, left_on='ip', right_on='query').sort("datetime")
 
     @_print_filter_stats
     def filter_non_erddap(self):
