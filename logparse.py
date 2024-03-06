@@ -28,8 +28,7 @@ def _load_apache_logs(apache_logs_dir):
                 url.append(this_url)
                 ua.append(entry.headers_in["User-Agent"])
                 code.append(entry.final_status)
-    df = pl.DataFrame({"ip": ip, "datetime": dt, "url": url, "user-agent": ua, "status-code": code})
-
+    df = pl.DataFrame({"ip": ip, "datetime": dt, "url": url, "user-agent": ua, "status-code": code}).with_columns(pl.col("datetime").dt.replace_time_zone(None))
     return df
 
 
@@ -41,7 +40,7 @@ def _load_nginx_logs(nginx_logs_dir):
             f"Supplied directory {nginx_logs_dir} contians no tomcat-access.log files",
         )
     lineformat = re.compile(
-        r"""(?P<ipaddress>\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}) - - \[(?P<dateandtime>\d{2}\/[a-z]{3}\/\d{4}:\d{2}:\d{2}:\d{2} (\+|\-)\d{4})\] ((\"(GET|POST|HEAD|PUT|DELETE) )(?P<url>.+)(http\/(1\.1|2\.0)")) (?P<statuscode>\d{3}) (?P<bytessent>\d+) (?P<refferer>-|"([^"]+)") (["](?P<useragent>[^"]+)["])""",
+        r"""(?P<ipaddress>\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}) - - \[(?P<dateandtime>\d{2}/[a-z]{3}/\d{4}:\d{2}:\d{2}:\d{2} ([+\-])\d{4})] ((\"(GET|POST|HEAD|PUT|DELETE) )(?P<url>.+)(http/(1\.1|2\.0)")) (?P<statuscode>\d{3}) (?P<bytessent>\d+) (?P<refferer>-|"([^"]+)") (["](?P<useragent>[^"]+)["])""",
         re.IGNORECASE)
     ip, datetimestring, url, bytessent, referrer, useragent, status, method = [], [], [], [], [], [], [], []
     for f in csvs:
@@ -49,8 +48,8 @@ def _load_nginx_logs(nginx_logs_dir):
             logfile = gzip.open(f)
         else:
             logfile = open(f)
-        for l in logfile.readlines():
-            data = re.search(lineformat, l)
+        for line in logfile.readlines():
+            data = re.search(lineformat, line)
             if data:
                 datadict = data.groupdict()
                 ip.append(datadict["ipaddress"])
@@ -64,15 +63,11 @@ def _load_nginx_logs(nginx_logs_dir):
         logfile.close()
 
     df = pl.DataFrame(
-        {"ip": ip, "datetimestring": datetimestring, "url": url, "user-agent": useragent, "status-code": status})
+        {"ip": ip, "datetime": datetimestring, "url": url, "user-agent": useragent, "status-code": status})
     df = df.with_columns(pl.col('status-code').cast(pl.Int64))
     # convert timestamp to datetime
     df = df.with_columns(
-        pl.col("datetimestring").str.strptime(pl.Datetime, format="%d/%b/%Y:%H:%M:%S +0000"))
-    df = df.rename({"datetimestring": "datetime"})
-    df = df.with_columns(
-        pl.col('datetime').cast(pl.Datetime).dt.replace_time_zone("UTC")
-    )
+        pl.col("datetime").str.strptime(pl.Datetime, format="%d/%b/%Y:%H:%M:%S +0000").dt.replace_time_zone(None))
     df_nginx = df.sort(by="datetime")
     return df_nginx
 
