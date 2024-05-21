@@ -15,7 +15,7 @@ def _load_apache_logs(apache_logs_dir):
             f"Supplied directory {apache_logs_dir} contains no access.log files",
         )
     parser = LogParser("%h %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\"")
-    dt, ip, url, ua, code = [], [], [], [], []
+    dt, ip, url, ua, code, bytes_sent, referer = [], [], [], [], [], [], []
     for fn in apache_logs:
         with open(fn) as fp:
             for entry in parser.parse_lines(fp):
@@ -28,7 +28,12 @@ def _load_apache_logs(apache_logs_dir):
                 url.append(this_url)
                 ua.append(entry.headers_in["User-Agent"])
                 code.append(entry.final_status)
-    df = pl.DataFrame({"ip": ip, "datetime": dt, "url": url, "user-agent": ua, "status-code": code}).with_columns(pl.col("datetime").dt.replace_time_zone(None))
+                bytes_sent.append(entry.bytes_sent)
+                referer.append(entry.headers_in['Referer'])
+    df = pl.DataFrame({"ip": ip, "datetime": dt, "url": url, "user-agent": ua, "status-code": code,
+                       'bytes-sent': bytes_sent, 'referer': referer}).with_columns(pl.col("datetime").dt.replace_time_zone(None))
+    df = df.with_columns(pl.col('status-code').cast(pl.Int64))
+    df = df.with_columns(pl.col('bytes-sent').cast(pl.Int64))
     return df
 
 
@@ -37,12 +42,12 @@ def _load_nginx_logs(nginx_logs_dir):
     csvs = list(Path(nginx_logs_dir).glob("tomcat-access.log*"))
     if len(csvs) == 0:
         raise ValueError(
-            f"Supplied directory {nginx_logs_dir} contians no tomcat-access.log files",
+            f"Supplied directory {nginx_logs_dir} contains no tomcat-access.log files",
         )
     lineformat = re.compile(
         r"""(?P<ipaddress>\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}) - - \[(?P<dateandtime>\d{2}/[a-z]{3}/\d{4}:\d{2}:\d{2}:\d{2} ([+\-])\d{4})] ((\"(GET|POST|HEAD|PUT|DELETE) )(?P<url>.+)(http/(1\.1|2\.0)")) (?P<statuscode>\d{3}) (?P<bytessent>\d+) (?P<refferer>-|"([^"]+)") (["](?P<useragent>[^"]+)["])""",
         re.IGNORECASE)
-    ip, datetimestring, url, bytessent, referrer, useragent, status, method = [], [], [], [], [], [], [], []
+    ip, datetimestring, url, bytessent, referer, useragent, status, method = [], [], [], [], [], [], [], []
     for f in csvs:
         if str(f).endswith(".gz"):
             logfile = gzip.open(f)
@@ -56,15 +61,17 @@ def _load_nginx_logs(nginx_logs_dir):
                 datetimestring.append(datadict["dateandtime"])
                 url.append(datadict["url"])
                 bytessent.append(datadict["bytessent"])
-                referrer.append(datadict["refferer"])
+                referer.append(datadict["refferer"])
                 useragent.append(datadict["useragent"])
                 status.append(datadict["statuscode"])
                 method.append(data.group(6))
         logfile.close()
 
     df = pl.DataFrame(
-        {"ip": ip, "datetime": datetimestring, "url": url, "user-agent": useragent, "status-code": status})
+        {"ip": ip, "datetime": datetimestring, "url": url, "user-agent": useragent, "status-code": status,
+         'bytes-sent': bytessent, 'referer': referer})
     df = df.with_columns(pl.col('status-code').cast(pl.Int64))
+    df = df.with_columns(pl.col('bytes-sent').cast(pl.Int64))
     # convert timestamp to datetime
     df = df.with_columns(
         pl.col("datetime").str.strptime(pl.Datetime, format="%d/%b/%Y:%H:%M:%S +0000").dt.replace_time_zone(None))
