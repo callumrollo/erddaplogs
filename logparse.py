@@ -104,7 +104,10 @@ def _get_ip_info(df, ip_info_csv, download_new=True, verbose=False):
                         print(f"New ip identified: {ip} in {resp['country']}. Sent {count} requests")
                     else:
                         print(f"New ip identified: {ip}. Sent {count} requests")
-                df_ip = pl.concat((df_ip, pl.DataFrame(resp)))
+                try:
+                    df_ip = pl.concat((df_ip, pl.DataFrame(resp)))
+                except:
+                    print(f"Issue with schema for this ip address {ip}, skipping")
     df_ip = df_ip.filter(
         ~pl.col("country").is_null()
     )
