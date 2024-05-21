@@ -3,6 +3,7 @@ from apachelogs import LogParser
 from pathlib import Path
 import polars as pl
 from collections import Counter
+from user_agents import parse
 import requests
 import re
 import gzip
@@ -230,14 +231,9 @@ class ErddapLogParser:
                            ):
         """Filter out requests from bots."""
         # Added by Samantha Ouertani at NOAA AOML Jan 2024
-        if bots is None:
-            bots = ["bot", "Googlebot", "Bingbot", "spider", "Yandex", "Crawl", "SEMRush", "zh-CN", "zh_CN",
-                    "LieBaoFast", "MicroMessenger", "Kinza", "OPPO A33", "Aspeigel", "PetalBot", "Yeti", "QQBrowser",
-                    "slurp", "TheWorld", "GoogleOther", "loc.gov", "scrapy", "Mb2345Browser"]
-        for bot in bots:
-            self.df = self.df.filter(
-                ~pl.col("user-agent").str.contains(f"(?i){bot}")
-            )
+        self.df = self.df.filter(
+            ~pl.col("user-agent").map_elements(lambda ua: parse(ua).is_bot)
+        )
         self.filter_name = "user agents"
 
     @_print_filter_stats
