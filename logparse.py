@@ -283,6 +283,14 @@ class ErddapLogParser:
             )
         self.filter_name = 'common strings'
 
+    @_print_filter_stats
+    def filter_anonymize_user_agent(self):
+        self.df = self.df.with_columns(pl.col("user-agent").map_elements(lambda ua: parse(ua).browser.family, return_dtype=pl.String).alias("BrowserFamily"))
+        self.df = self.df.with_columns(pl.col("user-agent").map_elements(lambda ua: parse(ua).device.family, return_dtype=pl.String).alias("DeviceFamily"))
+        self.df = self.df.with_columns(pl.col("user-agent").map_elements(lambda ua: parse(ua).os.family, return_dtype=pl.String).alias("OS"))
+        self.df = self.df.drop("user-agent")
+        self.filter_name = 'anonymize_user_agent'
+
     def undo_filter(self):
         if self.verbose:
             print(f'Reset to unfiltered DataFrame')
