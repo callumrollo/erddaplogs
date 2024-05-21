@@ -92,7 +92,7 @@ def _get_ip_info(df, ip_info_csv, download_new=True, verbose=False):
                               'as': '',
                               'query': ''})
     if download_new:
-        for ip, count in ip_counts[:5]:
+        for ip, count in ip_counts:
             if ip not in df_ip["query"]:
                 resp_raw = requests.get(f"http://ip-api.com/json/{ip}")
                 if resp_raw.status_code == 429:

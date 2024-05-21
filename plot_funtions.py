@@ -6,6 +6,7 @@ import cartopy
 import cartopy.crs as ccrs
 import datetime
 import matplotlib.dates as mdates
+from pathlib import Path
 
 
 def prep_for_plot(df):
@@ -149,5 +150,7 @@ def plot_for_single_ip(df_sub, fig_fn=None):
 
     ax = fig.add_subplot(spec[3:, 5:])
     _plot_popularity_bar(ax, df_sub, 'file_type', 10)
+    if not Path("figs_by_ip").exists():
+        Path("figs_by_ip").mkdir()
     if fig_fn:
-        fig.savefig(f"{fig_fn}.png")
+        fig.savefig(f"figs_by_ip/{fig_fn}.png")
