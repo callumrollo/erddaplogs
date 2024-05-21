@@ -226,9 +226,7 @@ class ErddapLogParser:
         self.filter_name = "organisations"
 
     @_print_filter_stats
-    def filter_user_agents(self,
-                           bots=None,
-                           ):
+    def filter_user_agents(self):
         """Filter out requests from bots."""
         # Added by Samantha Ouertani at NOAA AOML Jan 2024
         self.df = self.df.filter(
