@@ -199,6 +199,7 @@ class ErddapLogParser:
 
     @_print_filter_stats
     def filter_non_erddap(self):
+        """Filter out non-genuine requests."""
         self.filter_name = "non erddap"
         self.df = self.df.filter(
             pl.col("url").str.contains("erddap")
@@ -207,6 +208,7 @@ class ErddapLogParser:
     @_print_filter_stats
     def filter_organisations(self,
                              organisations=("Google", "Crawlers", "SEMrush")):
+        """Filter out non-visitor requests from specific organizations."""
         if 'org' not in self.df.columns:
             raise ValueError(
                 f"Organisation information not present in DataFrame. Try running get_ip_info first.",
@@ -226,6 +228,7 @@ class ErddapLogParser:
     def filter_user_agents(self,
                            bots=None,
                            ):
+        """Filter out requests from bots."""
         # Added by Samantha Ouertani at NOAA AOML Jan 2024
         if bots is None:
             bots = ["bot", "Googlebot", "Bingbot", "spider", "Yandex", "Crawl", "SEMRush", "zh-CN", "zh_CN",
@@ -240,6 +243,7 @@ class ErddapLogParser:
     @_print_filter_stats
     def filter_locales(self, locales=("zh-CN", "zh-TW", "ZH")):
         # Added by Samantha Ouertani at NOAA AOML Jan 2024
+        """Filter out requests from specific regions (locales)."""
         for locale in locales:
             self.df = self.df.filter(
                 ~pl.col("url").str.contains(f"{locale}")
@@ -250,6 +254,12 @@ class ErddapLogParser:
     def filter_spam(self,
                     spam_strings=(".env", "env.", ".php", ".git", "robots.txt", "phpinfo", "/config", "aws", ".xml")
                     ):
+        """
+        Filter out requests from non-visitors.
+
+        Filter out requests from indexing webpages, services monitoring uptime,
+        requests for files that aren't on the server, etc
+        """
         page_counts = Counter(list(self.df.select("url").to_numpy()[:, 0])).most_common()
         bad_pages = []
         for page, count in page_counts:
@@ -261,6 +271,7 @@ class ErddapLogParser:
 
     @_print_filter_stats
     def filter_files(self):
+        """Filter out requests for browsing erddap's virtual file system."""
         # Added by Samantha Ouertani at NOAA AOML Jan 2024
         self.df = self.df.filter(
             ~pl.col("url").str.contains("/files")
@@ -269,6 +280,7 @@ class ErddapLogParser:
 
     @_print_filter_stats
     def filter_common_strings(self, strings=('/version', 'favicon.ico', '.js', '.css', '/erddap/images')):
+        """Filter out non-data requests - requests for version, images, etc"""
         for string in strings:
             self.df = self.df.filter(
                 ~pl.col("url").str.contains(string)
