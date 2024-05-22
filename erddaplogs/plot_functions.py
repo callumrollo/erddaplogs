@@ -197,10 +197,10 @@ def plot_bytes(df, days=3):
         Number of days to sum over
 
     """
-    daily_bytes = df.group_by_dynamic("datetime", every=f"{days}d").agg(pl.col("bytes-sent").mean())
+    daily_bytes = df.group_by_dynamic("datetime", every=f"{days}d").agg(pl.col("bytes-sent").sum())
     fig, ax = plt.subplots(figsize=(12, 8))
-    ax.bar(daily_bytes['datetime'], daily_bytes['bytes-sent'])
-    ax.set(ylabel=f'Bytes sent per {days} days')
+    ax.bar(daily_bytes['datetime'], daily_bytes['bytes-sent'] / 1024 ** 3)
+    ax.set(ylabel=f'GB sent per {days} days')
 
 
 def plot_for_single_ip(df_sub, fig_fn=None):
