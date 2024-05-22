@@ -10,6 +10,19 @@ import gzip
 
 
 def _load_apache_logs(apache_logs_dir):
+    """
+    Parses apache logs.
+
+    Parameters
+    ----------
+    apache_logs_dir: str
+        dir with apache log files
+
+    Returns
+    -------
+    polars.DataFrame
+        parsed requests information
+    """
     apache_logs = list(Path(apache_logs_dir).glob("*access.log*"))
     if len(apache_logs) == 0:
         raise ValueError(
@@ -39,6 +52,19 @@ def _load_apache_logs(apache_logs_dir):
 
 
 def _load_nginx_logs(nginx_logs_dir):
+    """
+    Parses nginx logs.
+
+    Parameters
+    ----------
+    nginx_logs_dir: str
+        dir with apache log files
+
+    Returns
+    -------
+    polars.DataFrame
+        parsed requests information
+    """
     # nginx log parser from https://gist.github.com/hreeder/f1ffe1408d296ce0591d
     csvs = list(Path(nginx_logs_dir).glob("tomcat-access.log*"))
     if len(csvs) == 0:
@@ -81,6 +107,30 @@ def _load_nginx_logs(nginx_logs_dir):
 
 
 def _get_ip_info(df, ip_info_csv, download_new=True, verbose=False):
+    """
+    Add ip-derived information to the requests DataFrame.
+
+    If it exists, read a .csv file with ip-derived info. If said file does
+    not exist, get ip-derived information from requests ip addresses
+    using http://ip-api.com. Add this info to the requests DataFrame and
+    create a csv file with the ip-derived information.
+
+    Parameters
+    ----------
+    df: polars.DataFrame
+        parsed requests information
+    ip_info_csv: str
+        path to the csv file where ip information will be saved
+    download_new: bool, default=True
+        if True, only get info from previously unchecked ip addresses
+    verbose: bool, default=False
+        if True, info from each newly identified ip address will be displayed on the screen
+
+    Returns
+    -------
+    polars.DataFrame
+        ip-derived information
+    """
     ip_counts = Counter(df['ip']).most_common()
     if Path(ip_info_csv).exists():
         df_ip = pl.read_csv(ip_info_csv)
@@ -127,6 +177,12 @@ def _get_ip_info(df, ip_info_csv, download_new=True, verbose=False):
 
 
 def _print_filter_stats(call_wrap):
+    """
+    Decorator to the filter methods.
+
+    Modify filter_* methods so they print dataset information
+    before and after filtering.
+    """
     def magic(self):
         len_before = len(self.df)
         call_wrap(self)
@@ -145,12 +201,14 @@ class ErddapLogParser:
         self.filter_name = None
 
     def _update_original_total_requests(self):
+        """ Update the number of requests in the DataFrame."""
         self.original_total_requests = len(self.df)
         self.unfiltered_df = copy(self.df)
         if self.verbose:
             print(f'DataFrame now has {self.original_total_requests} lines')
 
     def subset_df(self, rows=1000):
+        """ Subset the requests DataFrame. Default rows=1000."""
         stride = int(self.df.shape[0] / rows)
         if self.verbose:
             print(f'starting from DataFrame with {self.df.shape[0]} lines. Subsetting by a factor of {stride}')
@@ -161,6 +219,7 @@ class ErddapLogParser:
 
     def load_apache_logs(self,
                          apache_logs_dir: str):
+        """ Parse apache logs."""
         df_apache = _load_apache_logs(apache_logs_dir)
         if self.verbose:
             print(f'loaded {len(df_apache)} log lines from {apache_logs_dir}')
@@ -176,6 +235,7 @@ class ErddapLogParser:
 
     def load_nginx_logs(self,
                         nginx_logs_dir: str):
+        """ Parse nginx logs."""
         df_nginx = _load_nginx_logs(nginx_logs_dir)
         if self.verbose:
             print(f'loaded {len(df_nginx)} log lines from {nginx_logs_dir}')
@@ -192,6 +252,7 @@ class ErddapLogParser:
     def get_ip_info(self,
                     ip_info_csv="ip.csv",
                     download_new=True):
+        """ Get ip-derived information from requests ip addresses."""
         if "country" in self.df.columns:
             return
         df_ip = _get_ip_info(self.df, ip_info_csv, download_new=download_new, verbose=self.verbose)
@@ -283,6 +344,7 @@ class ErddapLogParser:
 
     @_print_filter_stats
     def filter_anonymize_user_agent(self):
+        """Anonymize user agent."""
         self.df = self.df.with_columns(pl.col("user-agent").map_elements(lambda ua: parse(ua).browser.family, return_dtype=pl.String).alias("BrowserFamily"))
         self.df = self.df.with_columns(pl.col("user-agent").map_elements(lambda ua: parse(ua).device.family, return_dtype=pl.String).alias("DeviceFamily"))
         self.df = self.df.with_columns(pl.col("user-agent").map_elements(lambda ua: parse(ua).os.family, return_dtype=pl.String).alias("OS"))
@@ -290,6 +352,7 @@ class ErddapLogParser:
         self.filter_name = 'anonymize_user_agent'
 
     def undo_filter(self):
+        """Reset to unfiltered DataFrame."""
         if self.verbose:
             print(f'Reset to unfiltered DataFrame')
         self.df = self.unfiltered_df
