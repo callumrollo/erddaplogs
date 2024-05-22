@@ -9,4 +9,5 @@ tqdm
 apachelogs
 pyarrow
 user_agents
+pre-commit
 pytest
