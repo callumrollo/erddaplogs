@@ -2,3 +2,6 @@
 .idea
 __pycache__
 /figs_by_ip
+erddaplogs.egg-info
+erddaplogs/_version.py
+anonymized.csv

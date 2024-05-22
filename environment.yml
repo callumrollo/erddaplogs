@@ -1,4 +1,4 @@
-name: weblogs
+name: erddaplogs
 channels:
   - conda-forge
 dependencies:

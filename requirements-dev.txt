@@ -1,0 +1,12 @@
+numpy
+cartopy
+pandas
+matplotlib
+jupyterlab
+requests
+polars<=0.20.10
+tqdm
+apachelogs
+pyarrow
+user_agents
+pytest
