@@ -5,6 +5,7 @@ matplotlib
 jupyterlab
 requests
 polars<=0.20.10
+pre-commit
 tqdm
 apachelogs
 pyarrow
