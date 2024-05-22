@@ -9,6 +9,7 @@ dependencies:
         - jupyterlab
         - requests
         - polars<=0.20.10
+        - pre-commit
         - tqdm
         - pip
         - pip:
