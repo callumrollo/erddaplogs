@@ -392,7 +392,7 @@ class ErddapLogParser:
         """Generates a dataframe that contains query counts by status code and location."""
         self.location = self.df.group_by(
             ["status-code", "countryCode", "regionName", "city"]
-        ).count()
+        ).len()
 
     def anonymize_user_agent(self):
         """Modifies the anonymized dataframe to have browser, device, and os names instead of full user agent."""

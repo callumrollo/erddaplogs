@@ -59,6 +59,8 @@ def prep_for_plot(df):
     ip_subnet = ip_grid[0] + "." + ip_grid[1] + "." + ip_grid[2]
     df = df.with_columns(ip_group=ip_group.values)
     df = df.with_columns(ip_subnet=ip_subnet.values)
+    df = df.sort(by="datetime")
+
     return df
 
 
@@ -255,7 +257,7 @@ def plot_for_single_ip(df_sub, fig_fn=None):
     lat = df_sub.select("lat").mean()[0, 0]
 
     name = f'{df_sub.select("country")[0, 0]} {ip}'
-    fig = plt.figure(figsize=(12, 8), layout="constrained")
+    fig = plt.figure(figsize=(20, 10), layout="constrained")
     spec = fig.add_gridspec(6, 9)
     ax = fig.add_subplot(spec[:2, :4])
     ax.hist(df_sub.select("datetime"), bins=bins)
