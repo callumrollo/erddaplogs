@@ -3,6 +3,7 @@ from apachelogs import LogParser
 from pathlib import Path
 import polars as pl
 from collections import Counter
+from user_agents import parse
 import requests
 import re
 import gzip
@@ -225,19 +226,12 @@ class ErddapLogParser:
         self.filter_name = "organisations"
 
     @_print_filter_stats
-    def filter_user_agents(self,
-                           bots=None,
-                           ):
+    def filter_user_agents(self):
         """Filter out requests from bots."""
         # Added by Samantha Ouertani at NOAA AOML Jan 2024
-        if bots is None:
-            bots = ["bot", "Googlebot", "Bingbot", "spider", "Yandex", "Crawl", "SEMRush", "zh-CN", "zh_CN",
-                    "LieBaoFast", "MicroMessenger", "Kinza", "OPPO A33", "Aspeigel", "PetalBot", "Yeti", "QQBrowser",
-                    "slurp", "TheWorld", "GoogleOther", "loc.gov", "scrapy", "Mb2345Browser"]
-        for bot in bots:
-            self.df = self.df.filter(
-                ~pl.col("user-agent").str.contains(f"(?i){bot}")
-            )
+        self.df = self.df.filter(
+            ~pl.col("user-agent").map_elements(lambda ua: parse(ua).is_bot)
+        )
         self.filter_name = "user agents"
 
     @_print_filter_stats
@@ -286,6 +280,14 @@ class ErddapLogParser:
                 ~pl.col("url").str.contains(string)
             )
         self.filter_name = 'common strings'
+
+    @_print_filter_stats
+    def filter_anonymize_user_agent(self):
+        self.df = self.df.with_columns(pl.col("user-agent").map_elements(lambda ua: parse(ua).browser.family, return_dtype=pl.String).alias("BrowserFamily"))
+        self.df = self.df.with_columns(pl.col("user-agent").map_elements(lambda ua: parse(ua).device.family, return_dtype=pl.String).alias("DeviceFamily"))
+        self.df = self.df.with_columns(pl.col("user-agent").map_elements(lambda ua: parse(ua).os.family, return_dtype=pl.String).alias("OS"))
+        self.df = self.df.drop("user-agent")
+        self.filter_name = 'anonymize_user_agent'
 
     def undo_filter(self):
         if self.verbose:
