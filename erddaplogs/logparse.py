@@ -391,7 +391,7 @@ class ErddapLogParser:
     def aggregate_location(self):
         """Generates a dataframe that contains query counts by status code and location."""
         self.location = self.df.group_by(
-            ["status-code", "countryCode", "regionName", "city"]
+            ["countryCode", "regionName", "city"]
         ).count()
 
     def anonymize_user_agent(self):
@@ -427,6 +427,15 @@ class ErddapLogParser:
             )
         )
 
+    def anonymize_query(self):
+        """Remove email= and the address from queries."""
+        self.anonymized = self.anonymized.with_columns(
+            pl.col("url").map_elements(
+                lambda url: re.sub("email=.*?&", "", url),
+                return_dtype=pl.String,
+            )
+        )
+
     def anonymize_requests(self):
         """Creates tables that are safe for sharing, including a query by location table and an anonymized table."""
         self.aggregate_location()
@@ -435,6 +444,8 @@ class ErddapLogParser:
         )
         self.anonymize_user_agent()
         self.anonymize_ip()
+        self.anonymize_query()
+    
 
     def export_data(self):
         """Exports the anonymized data to csv files that can be shared."""
