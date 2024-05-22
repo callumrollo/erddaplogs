@@ -31,12 +31,26 @@ def prep_for_plot(df):
     df = df.with_columns(pl.col("country").fill_null("unknown"))
     df_parts = df['url'].to_pandas().str.replace(' ', '').str.split('?', expand=True)
     df = df.with_columns(base_url=df_parts[0].str.split('.', expand=True)[0].values)
+    url_parts = df['base_url'].to_pandas().str.split('/', expand=True)
+    url_parts['protocol'] = None
+    url_parts.loc[url_parts[2] == 'tabledap', 'protocol'] = 'tabledap'
+    url_parts.loc[url_parts[2] == 'griddap', 'protocol'] = 'griddap'
+    url_parts.loc[url_parts[2] == 'files', 'protocol'] = 'files'
+    url_parts.loc[url_parts[2] == 'info', 'protocol'] = 'info'
+    url_parts['dataset_id'] = url_parts[3]
+    df = df.with_columns(erddap_request_type=url_parts['protocol'].values)
+    df = df.with_columns(dataset_id=url_parts['dataset_id'].values)
+    df = (df
+    .with_columns(
+        dataset_id=pl.when(pl.col('erddap_request_type').is_null())
+        .then(None)
+        .otherwise(pl.col('dataset_id')))
+    )
     df = df.with_columns(request_kwargs=df_parts[1].values)
     df = df.with_columns(file_type=df_parts[0].str.split('.', expand=True)[1].values)
     df = df.with_columns(
         user_agent_base=df['user-agent'].to_pandas().str.split(' ', expand=True)[0].str.split('/', expand=True)[
             0].values)
-
     ip_grid = df['ip'].to_pandas().str.split(".", expand=True)
     ip_group = ip_grid[0] + "." + ip_grid[1]
     ip_subnet = ip_grid[0] + "." + ip_grid[1] + "." + ip_grid[2]
@@ -103,6 +117,8 @@ def _plot_popularity_bar(ax, df, col_name, rows):
         subsetted DataFrame containing only the information to be plotted
     """
     counts = Counter(df[col_name].to_list()).most_common()
+    if None in counts[0]:
+        counts = counts[1:]
     df_counts = pl.DataFrame(counts)[:rows].fill_null("unknown").rename({'column_0': col_name, 'column_1': 'counts'})
     ax.barh(np.arange(len(df_counts)), df_counts['counts'].to_list(), tick_label=df_counts[col_name].to_list())
     ax.set_title(f"ERDDAP request most common {col_name}")
@@ -167,6 +183,24 @@ def plot_map_requests(df, aggregate_on='ip_group', extent=(-120, 40, 20, 70)):
     for i in [10, 100, 1000, 10000]:
         ax.scatter(1000, 10000, zorder=-10, s=i / scale_fac, label=i, transform=pc, color="C1")
     ax.legend()
+
+
+def plot_bytes(df, days=3):
+    """
+    plot the total bytes sent by the server summed over a number of days
+
+    Parameters
+    ----------
+    df: DataFrame
+        DataFrame to be plotted
+    days: int, default = 3
+        Number of days to sum over
+
+    """
+    daily_bytes = df.group_by_dynamic("datetime", every=f"{days}d").agg(pl.col("bytes-sent").mean())
+    fig, ax = plt.subplots(figsize=(12, 8))
+    ax.bar(daily_bytes['datetime'], daily_bytes['bytes-sent'])
+    ax.set(ylabel=f'Bytes sent per {days} days')
 
 
 def plot_for_single_ip(df_sub, fig_fn=None):
