@@ -230,7 +230,7 @@ class ErddapLogParser:
         """Filter out requests from bots."""
         # Added by Samantha Ouertani at NOAA AOML Jan 2024
         self.df = self.df.filter(
-            ~pl.col("user-agent").map_elements(lambda ua: parse(ua).is_bot)
+            ~pl.col("user-agent").map_elements(lambda ua: parse(ua).is_bot, return_dtype=pl.Boolean)
         )
         self.filter_name = "user agents"
 
@@ -282,25 +282,30 @@ class ErddapLogParser:
         self.filter_name = 'common strings'
 
     def aggregate_location(self):
+        """Generates a dataframe that contains query counts by status code and location."""
         self.location = self.df.group_by(['status-code','countryCode', 'regionName', 'city']).count()
 
     def anonymize_user_agent(self):
+        """Modifies the anonymized dataframe to have browser, device, and os names instead of full user agent."""
         self.anonymized = self.anonymized.with_columns(pl.col("user-agent").map_elements(lambda ua: parse(ua).browser.family, return_dtype=pl.String).alias("BrowserFamily"))
         self.anonymized = self.anonymized.with_columns(pl.col("user-agent").map_elements(lambda ua: parse(ua).device.family, return_dtype=pl.String).alias("DeviceFamily"))
         self.anonymized = self.anonymized.with_columns(pl.col("user-agent").map_elements(lambda ua: parse(ua).os.family, return_dtype=pl.String).alias("OS"))
         self.anonymized = self.anonymized.drop("user-agent")
 
     def anonymize_ip(self):
+        """Replaces the ip address with a unique number identifier."""
         unique_df = pl.DataFrame({'ip': self.anonymized.get_column('ip').unique()}).with_row_index()
         self.anonymized = self.anonymized.with_columns(pl.col('ip').map_elements(lambda ip: unique_df.row(by_predicate=(pl.col('ip') == ip), named=True)['index'], return_dtype=pl.Int32))
 
     def anonymize_requests(self):
+        """Creates tables that are safe for sharing, including a query by location table and an anonymized table."""
         self.aggregate_location()
         self.anonymized = self.df.select(['ip', 'datetime', 'status-code', 'bytes-sent', 'url', 'user-agent'])
         self.anonymize_user_agent()
         self.anonymize_ip()
     
     def export_data(self):
+        """Exports the anonymized data to csv files that can be shared."""
         self.anonymize_requests()
         self.anonymized.write_csv("anonymized.csv")
         self.location.write_csv("location.csv")
