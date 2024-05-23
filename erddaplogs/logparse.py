@@ -237,7 +237,7 @@ def _parse_columns(df):
     """
     df = df.with_columns(pl.col("country").fill_null("unknown"))
     df_parts = df["url"].to_pandas().str.replace(" ", "").str.split("?", expand=True)
-    df = df.with_columns(base_url=df_parts[0].str.split(".", expand=True)[0].values)
+    df = df.with_columns(base_url=df_parts[0].str.split(".", expand=True)[0].astype(str).values)
     url_parts = df["base_url"].to_pandas().str.split("/", expand=True)
     url_parts["protocol"] = None
     url_parts.loc[url_parts[2] == "tabledap", "protocol"] = "tabledap"
@@ -245,15 +245,15 @@ def _parse_columns(df):
     url_parts.loc[url_parts[2] == "files", "protocol"] = "files"
     url_parts.loc[url_parts[2] == "info", "protocol"] = "info"
     url_parts["dataset_id"] = url_parts[3]
-    df = df.with_columns(erddap_request_type=url_parts["protocol"].values)
-    df = df.with_columns(dataset_id=url_parts["dataset_id"].values)
+    df = df.with_columns(erddap_request_type=url_parts["protocol"].astype(str).values)
+    df = df.with_columns(dataset_id=url_parts["dataset_id"].astype(str).values)
     df = df.with_columns(
         dataset_id=pl.when(pl.col("erddap_request_type").is_null())
         .then(None)
         .otherwise(pl.col("dataset_id"))
     )
-    df = df.with_columns(request_kwargs=df_parts[1].values)
-    df = df.with_columns(file_type=df_parts[0].str.split(".", expand=True)[1].values)
+    df = df.with_columns(request_kwargs=df_parts[1].astype(str).values)
+    df = df.with_columns(file_type=df_parts[0].str.split(".", expand=True)[1].astype(str).values)
     df = df.with_columns(
         user_agent_base=df["user-agent"]
         .to_pandas()
