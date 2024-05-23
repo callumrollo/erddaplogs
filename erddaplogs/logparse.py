@@ -136,7 +136,7 @@ def _load_nginx_logs(nginx_logs_dir):
     return df_nginx
 
 
-def _get_ip_info(df, ip_info_csv, download_new=True, verbose=False):
+def _get_ip_info(df, ip_info_csv, download_new=True, num_new_ips=60, verbose=False):
     """
     Add ip-derived information to the requests DataFrame.
 
@@ -152,7 +152,9 @@ def _get_ip_info(df, ip_info_csv, download_new=True, verbose=False):
     ip_info_csv: str
         path to the csv file where ip information will be saved
     download_new: bool, default=True
-        if True, only get info from previously unchecked ip addresses
+        if True, fetches information for unknown ip addresses
+    num_new_ips: int, default=60
+        number of new ip addresses to fetch information for
     verbose: bool, default=False
         if True, info from each newly identified ip address will be displayed on the screen
 
@@ -184,9 +186,13 @@ def _get_ip_info(df, ip_info_csv, download_new=True, verbose=False):
             }
         )
     if download_new:
+        fetched_ips = 0
         for ip, count in ip_counts:
             if ip not in df_ip["query"]:
+                if fetched_ips >= num_new_ips:
+                    break
                 resp_raw = requests.get(f"http://ip-api.com/json/{ip}")
+                fetched_ips += 1
                 if resp_raw.status_code == 429:
                     print("Exceeded API responses. Wait a minute and try again")
                     break
@@ -201,7 +207,7 @@ def _get_ip_info(df, ip_info_csv, download_new=True, verbose=False):
                 try:
                     df_ip = pl.concat((df_ip, pl.DataFrame(resp)))
                 except (pl.exceptions.SchemaError, pl.exceptions.ShapeError):
-                    print(f"Issue with schema for this ip address {ip}, skipping")
+                    print(f"Issue fetching data for this ip address {ip}, skipping")
     df_ip = df_ip.filter(~pl.col("country").is_null())
     df_ip = df_ip.filter(pl.col("country") != "")
     df_ip.write_csv(ip_info_csv)
@@ -291,12 +297,12 @@ class ErddapLogParser:
         self.df = df_combi
         self._update_original_total_requests()
 
-    def get_ip_info(self, ip_info_csv="ip.csv", download_new=True):
+    def get_ip_info(self, ip_info_csv="ip.csv", download_new=True, num_ips=60):
         """Get ip-derived information from requests ip addresses."""
         if "country" in self.df.columns:
             return
         df_ip = _get_ip_info(
-            self.df, ip_info_csv, download_new=download_new, verbose=self.verbose
+            self.df, ip_info_csv, download_new=download_new, verbose=self.verbose, num_new_ips=num_ips
         )
         self.ip = df_ip
         self.df = self.df.join(df_ip, left_on="ip", right_on="query").sort("datetime")
