@@ -7,6 +7,7 @@ from user_agents import parse
 import requests
 import re
 import gzip
+import xml.etree.ElementTree as ET
 
 
 def _load_apache_logs(apache_logs_dir):
@@ -394,6 +395,10 @@ class ErddapLogParser:
             self.df = self.df.filter(~pl.col("url").str.contains(string))
         self.filter_name = "common strings"
 
+    def parse_datasets_xml(self, datasests_xml_path):
+        tree = ET.parse(datasests_xml_path)
+        root = tree.getroot()
+        
     def aggregate_location(self):
         """Generates a dataframe that contains query counts by status code and location."""
         self.location = self.df.group_by(
