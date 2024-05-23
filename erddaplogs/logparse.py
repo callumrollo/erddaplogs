@@ -323,9 +323,9 @@ class ErddapLogParser:
             )
         self._update_original_total_requests()
 
-    def load_apache_logs(self, apache_logs_dir: str, wildcard_fname: str):
+    def load_apache_logs(self, apache_logs_dir: str, wildcard_fname="*access.log*"):
         """Parse apache logs."""
-        df_apache = _load_apache_logs(apache_logs_dir, wildcard_fname="*access.log*")
+        df_apache = _load_apache_logs(apache_logs_dir, wildcard_fname)
         if self.verbose:
             print(f"loaded {len(df_apache)} log lines from {apache_logs_dir}")
         df_combi = pl.concat(
@@ -339,9 +339,9 @@ class ErddapLogParser:
         self.df = df_combi
         self._update_original_total_requests()
 
-    def load_nginx_logs(self, nginx_logs_dir: str, wildcard_fname: str):
+    def load_nginx_logs(self, nginx_logs_dir: str, wildcard_fname="*access.log*"):
         """Parse nginx logs."""
-        df_nginx = _load_nginx_logs(nginx_logs_dir, wildcard_fname="*access.log*")
+        df_nginx = _load_nginx_logs(nginx_logs_dir, wildcard_fname)
         if self.verbose:
             print(f"loaded {len(df_nginx)} log lines from {nginx_logs_dir}")
         df_combi = pl.concat(
