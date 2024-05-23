@@ -56,4 +56,6 @@ ignore = [
     "*.ipynb",
     "tests",
     "tests/*",
+    "example_data",
+    "example_data/*"
 ]

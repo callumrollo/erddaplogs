@@ -1,12 +1,6 @@
-numpy
-cartopy
-pandas
-matplotlib
-jupyterlab
 requests
+pandas
 polars<=0.20.10
-pre-commit
-tqdm
-apachelogs
 pyarrow
+apachelogs
 user_agents
