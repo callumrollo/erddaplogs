@@ -11,7 +11,7 @@ import gzip
 import xml.etree.ElementTree as ET
 
 
-def _load_apache_logs(apache_logs_dir):
+def _load_apache_logs(apache_logs_dir,wildcard_fname):
     """
     Parses apache logs.
 
@@ -19,13 +19,14 @@ def _load_apache_logs(apache_logs_dir):
     ----------
     apache_logs_dir: str
         dir with apache log files
-
+    wildcard_fname: str
+        apache access logfile name string allowing for wildcard
     Returns
     -------
     polars.DataFrame
         parsed requests information
     """
-    apache_logs = list(Path(apache_logs_dir).glob("*access.log*"))
+    apache_logs = list(Path(apache_logs_dir).glob(wildcard_fname))
     if len(apache_logs) == 0:
         raise ValueError(
             f"Supplied directory {apache_logs_dir} contains no access.log files",
@@ -62,7 +63,7 @@ def _load_apache_logs(apache_logs_dir):
     return df
 
 
-def _load_nginx_logs(nginx_logs_dir):
+def _load_nginx_logs(nginx_logs_dir, wildcard_fname):
     """
     Parses nginx logs.
 
@@ -70,14 +71,15 @@ def _load_nginx_logs(nginx_logs_dir):
     ----------
     nginx_logs_dir: str
         dir with apache log files
-
+    wildcard_fname: str
+        nginx access logfile name string allowing for wildcard
     Returns
     -------
     polars.DataFrame
         parsed requests information
     """
     # nginx log parser from https://gist.github.com/hreeder/f1ffe1408d296ce0591d
-    csvs = list(Path(nginx_logs_dir).glob("tomcat-access.log*"))
+    csvs = list(Path(nginx_logs_dir).glob(wildcard_fname))
     if len(csvs) == 0:
         raise ValueError(
             f"Supplied directory {nginx_logs_dir} contains no tomcat-access.log files",
@@ -321,9 +323,9 @@ class ErddapLogParser:
             )
         self._update_original_total_requests()
 
-    def load_apache_logs(self, apache_logs_dir: str):
+    def load_apache_logs(self, apache_logs_dir: str, wildcard_fname: str):
         """Parse apache logs."""
-        df_apache = _load_apache_logs(apache_logs_dir)
+        df_apache = _load_apache_logs(apache_logs_dir, wildcard_fname)
         if self.verbose:
             print(f"loaded {len(df_apache)} log lines from {apache_logs_dir}")
         df_combi = pl.concat(
@@ -337,9 +339,9 @@ class ErddapLogParser:
         self.df = df_combi
         self._update_original_total_requests()
 
-    def load_nginx_logs(self, nginx_logs_dir: str):
+    def load_nginx_logs(self, nginx_logs_dir: str, wildcard_fname: str):
         """Parse nginx logs."""
-        df_nginx = _load_nginx_logs(nginx_logs_dir)
+        df_nginx = _load_nginx_logs(nginx_logs_dir, wildcard_fname)
         if self.verbose:
             print(f"loaded {len(df_nginx)} log lines from {nginx_logs_dir}")
         df_combi = pl.concat(
