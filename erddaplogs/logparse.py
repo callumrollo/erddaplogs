@@ -216,6 +216,61 @@ def _get_ip_info(df, ip_info_csv, download_new=True, num_new_ips=60, verbose=Fal
     return df_ip
 
 
+def _parse_columns(df):
+    """
+    Parses the requests and other columns to generate extra columns of data
+
+    Get base_url, request_kwargs and file_type
+    from the request url. Discard the versions
+    of user-agents and separate ip addresses into
+    groups and subnets.
+
+    Parameters
+    ----------
+    df: polars.DataFrame
+        DataFrame with requests information
+
+    Returns
+    -------
+    polars.DataFrame
+        requests DataFrame with additional information, suitable for plotting
+    """
+    df = df.with_columns(pl.col("country").fill_null("unknown"))
+    df_parts = df["url"].to_pandas().str.replace(" ", "").str.split("?", expand=True)
+    df = df.with_columns(base_url=df_parts[0].str.split(".", expand=True)[0].astype(str).values)
+    url_parts = df["base_url"].to_pandas().str.split("/", expand=True)
+    url_parts["protocol"] = None
+    url_parts.loc[url_parts[2] == "tabledap", "protocol"] = "tabledap"
+    url_parts.loc[url_parts[2] == "griddap", "protocol"] = "griddap"
+    url_parts.loc[url_parts[2] == "files", "protocol"] = "files"
+    url_parts.loc[url_parts[2] == "info", "protocol"] = "info"
+    url_parts["dataset_id"] = url_parts[3]
+    df = df.with_columns(erddap_request_type=url_parts["protocol"].astype(str).values)
+    df = df.with_columns(dataset_id=url_parts["dataset_id"].astype(str).values)
+    df = df.with_columns(
+        dataset_id=pl.when(pl.col("erddap_request_type").is_null())
+        .then(None)
+        .otherwise(pl.col("dataset_id"))
+    )
+    df = df.with_columns(request_kwargs=df_parts[1].astype(str).values)
+    df = df.with_columns(file_type=df_parts[0].str.split(".", expand=True)[1].astype(str).values)
+    df = df.with_columns(
+        user_agent_base=df["user-agent"]
+        .to_pandas()
+        .str.split(" ", expand=True)[0]
+        .str.split("/", expand=True)[0]
+        .values
+    )
+    ip_grid = df["ip"].to_pandas().str.split(".", expand=True)
+    ip_group = ip_grid[0] + "." + ip_grid[1]
+    ip_subnet = ip_grid[0] + "." + ip_grid[1] + "." + ip_grid[2]
+    df = df.with_columns(ip_group=ip_group.values)
+    df = df.with_columns(ip_subnet=ip_subnet.values)
+    df = df.sort(by="datetime")
+
+    return df
+
+
 def _print_filter_stats(call_wrap):
     """
     Decorator to the filter methods.
@@ -302,7 +357,11 @@ class ErddapLogParser:
         if "country" in self.df.columns:
             return
         df_ip = _get_ip_info(
-            self.df, ip_info_csv, download_new=download_new, verbose=self.verbose, num_new_ips=num_ips
+            self.df,
+            ip_info_csv,
+            download_new=download_new,
+            verbose=self.verbose,
+            num_new_ips=num_ips,
         )
         self.ip = df_ip
         self.df = self.df.join(df_ip, left_on="ip", right_on="query").sort("datetime")
@@ -394,11 +453,12 @@ class ErddapLogParser:
             self.df = self.df.filter(~pl.col("url").str.contains(string))
         self.filter_name = "common strings"
 
+    def parse_columns(self):
+        self.df = _parse_columns(self.df)
+
     def aggregate_location(self):
         """Generates a dataframe that contains query counts by status code and location."""
-        self.location = self.df.group_by(
-            ["countryCode", "regionName", "city"]
-        ).len()
+        self.location = self.df.group_by(["countryCode", "regionName", "city"]).len()
 
     def anonymize_user_agent(self):
         """Modifies the anonymized dataframe to have browser, device, and os names instead of full user agent."""
@@ -451,7 +511,6 @@ class ErddapLogParser:
         self.anonymize_user_agent()
         self.anonymize_ip()
         self.anonymize_query()
-    
 
     def export_data(self):
         """Exports the anonymized data to csv files that can be shared."""
