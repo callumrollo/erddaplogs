@@ -1,4 +1,5 @@
 from copy import copy
+from datetime import datetime
 from apachelogs import LogParser
 from pathlib import Path
 import polars as pl
@@ -519,7 +520,7 @@ class ErddapLogParser:
         """Creates tables that are safe for sharing, including a query by location table and an anonymized table."""
         self.aggregate_location()
         self.anonymized = self.df.select(
-            ["ip", "datetime", "status-code", "bytes-sent", "erddap_request_type", "dataset_id", "file_type", "url", "user-agent"]
+            pl.selectors.matches("^^ip$|^datetime$|^status-code$|^bytes-sent$|^erddap_request_type$|^dataset_type$|^dataset_id$|^file_type$|^url$|^user-agent$")
         )
         self.anonymize_user_agent()
         self.anonymize_ip()
@@ -528,8 +529,9 @@ class ErddapLogParser:
     def export_data(self):
         """Exports the anonymized data to csv files that can be shared."""
         self.anonymize_requests()
-        self.anonymized.write_csv("anonymized.csv")
-        self.location.write_csv("location.csv")
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_")
+        self.anonymized.write_csv(timestamp + "anonymized.csv")
+        self.location.write_csv(timestamp + "location.csv")
 
     def undo_filter(self):
         """Reset to unfiltered DataFrame."""
