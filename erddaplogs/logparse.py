@@ -11,7 +11,7 @@ import gzip
 import xml.etree.ElementTree as ET
 
 
-def _load_apache_logs(apache_logs_dir):
+def _load_apache_logs(apache_logs_dir, log_filename_pattern):
     """
     Parses apache logs.
 
@@ -25,7 +25,7 @@ def _load_apache_logs(apache_logs_dir):
     polars.DataFrame
         parsed requests information
     """
-    apache_logs = list(Path(apache_logs_dir).glob("*access.log*"))
+    apache_logs = list(Path(apache_logs_dir).glob(log_filename_pattern))
     if len(apache_logs) == 0:
         raise ValueError(
             f"Supplied directory {apache_logs_dir} contains no access.log files",
@@ -62,7 +62,7 @@ def _load_apache_logs(apache_logs_dir):
     return df
 
 
-def _load_nginx_logs(nginx_logs_dir):
+def _load_nginx_logs(nginx_logs_dir, log_filename_pattern):
     """
     Parses nginx logs.
 
@@ -77,7 +77,7 @@ def _load_nginx_logs(nginx_logs_dir):
         parsed requests information
     """
     # nginx log parser from https://gist.github.com/hreeder/f1ffe1408d296ce0591d
-    csvs = list(Path(nginx_logs_dir).glob("tomcat-access.log*"))
+    csvs = list(Path(nginx_logs_dir).glob(log_filename_pattern))
     if len(csvs) == 0:
         raise ValueError(
             f"Supplied directory {nginx_logs_dir} contains no tomcat-access.log files",
@@ -237,7 +237,9 @@ def _parse_columns(df):
     """
     df = df.with_columns(pl.col("country").fill_null("unknown"))
     df_parts = df["url"].to_pandas().str.replace(" ", "").str.split("?", expand=True)
-    df = df.with_columns(base_url=df_parts[0].str.split(".", expand=True)[0].astype(str).values)
+    df = df.with_columns(
+        base_url=df_parts[0].str.split(".", expand=True)[0].astype(str).values
+    )
     url_parts = df["base_url"].to_pandas().str.split("/", expand=True)
     url_parts["protocol"] = None
     url_parts.loc[url_parts[2] == "tabledap", "protocol"] = "tabledap"
@@ -253,7 +255,9 @@ def _parse_columns(df):
         .otherwise(pl.col("dataset_id"))
     )
     df = df.with_columns(request_kwargs=df_parts[1].astype(str).values)
-    df = df.with_columns(file_type=df_parts[0].str.split(".", expand=True)[1].astype(str).values)
+    df = df.with_columns(
+        file_type=df_parts[0].str.split(".", expand=True)[1].astype(str).values
+    )
     df = df.with_columns(
         user_agent_base=df["user-agent"]
         .to_pandas()
@@ -321,9 +325,11 @@ class ErddapLogParser:
             )
         self._update_original_total_requests()
 
-    def load_apache_logs(self, apache_logs_dir: str):
+    def load_apache_logs(
+        self, apache_logs_dir: str, log_filename_pattern="*access.log*"
+    ):
         """Parse apache logs."""
-        df_apache = _load_apache_logs(apache_logs_dir)
+        df_apache = _load_apache_logs(apache_logs_dir, log_filename_pattern)
         if self.verbose:
             print(f"loaded {len(df_apache)} log lines from {apache_logs_dir}")
         df_combi = pl.concat(
@@ -337,9 +343,9 @@ class ErddapLogParser:
         self.df = df_combi
         self._update_original_total_requests()
 
-    def load_nginx_logs(self, nginx_logs_dir: str):
+    def load_nginx_logs(self, nginx_logs_dir: str, log_filename_pattern="*access.log*"):
         """Parse nginx logs."""
-        df_nginx = _load_nginx_logs(nginx_logs_dir)
+        df_nginx = _load_nginx_logs(nginx_logs_dir, log_filename_pattern)
         if self.verbose:
             print(f"loaded {len(df_nginx)} log lines from {nginx_logs_dir}")
         df_combi = pl.concat(
@@ -365,7 +371,9 @@ class ErddapLogParser:
             num_new_ips=num_ips,
         )
         self.ip = df_ip
-        self.df = self.df.join(df_ip, left_on="ip", right_on="query", how='left').sort("datetime")
+        self.df = self.df.join(df_ip, left_on="ip", right_on="query", how="left").sort(
+            "datetime"
+        )
 
     @_print_filter_stats
     def filter_non_erddap(self):
@@ -460,15 +468,19 @@ class ErddapLogParser:
         dataset_id = []
         dataset_type = []
         for child in root:
-            if 'datasetID' in child.keys():
-                dataset_id.append(child.get('datasetID'))
-                dataset_type.append(child.get('type'))
-        self.df_xml = pl.DataFrame({'dataset_id': dataset_id, 'dataset_type': dataset_type})
+            if "datasetID" in child.keys():
+                dataset_id.append(child.get("datasetID"))
+                dataset_type.append(child.get("type"))
+        self.df_xml = pl.DataFrame(
+            {"dataset_id": dataset_id, "dataset_type": dataset_type}
+        )
 
     def parse_columns(self):
         self.df = _parse_columns(self.df)
         if not self.df_xml.is_empty():
-            self.df = self.df.join(self.df_xml, left_on="dataset_id", right_on="dataset_id", how='left').sort("datetime")
+            self.df = self.df.join(
+                self.df_xml, left_on="dataset_id", right_on="dataset_id", how="left"
+            ).sort("datetime")
 
     def aggregate_location(self):
         """Generates a dataframe that contains query counts by status code and location."""
@@ -520,7 +532,9 @@ class ErddapLogParser:
         """Creates tables that are safe for sharing, including a query by location table and an anonymized table."""
         self.aggregate_location()
         self.anonymized = self.df.select(
-            pl.selectors.matches("^^ip$|^datetime$|^status-code$|^bytes-sent$|^erddap_request_type$|^dataset_type$|^dataset_id$|^file_type$|^url$|^user-agent$")
+            pl.selectors.matches(
+                "^^ip$|^datetime$|^status-code$|^bytes-sent$|^erddap_request_type$|^dataset_type$|^dataset_id$|^file_type$|^url$|^user-agent$"
+            )
         )
         self.anonymize_user_agent()
         self.anonymize_ip()
