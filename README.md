@@ -61,10 +61,8 @@ python3 -m pip install -e .
 
 ### Example Jupyter Notebook
 
-[This](https://github.com/callumrollo/erddaplogs/blob/main/weblogs-parse-demo.ipynb) example jupyter notebook in performs the following steps:
-
-
-The jupyter notebook performs the following steps:
+You can find an example Jupyter Notebook 
+[here](https://github.com/callumrollo/erddaplogs/blob/main/weblogs-parse-demo.ipynb). It performs the following steps:
 
 1. Read in apache and nginx logs, combine them into one consistent dataframe
 2. Find the ips that made the greatest number of requests. Get their info from ip-api.com
