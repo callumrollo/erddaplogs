@@ -202,7 +202,8 @@ def plot_map_requests(df, aggregate_on="ip_group", extent=(-120, 40, 20, 70)):
         transform=pc,
         color="C1",
     )
-    for i in [10, 100, 1000, 10000]:
+    scales = np.array([10, 100, 1000, 10000, 100000])
+    for i in scales[scales < ip_grouped["len"].max()]:
         ax.scatter(
             1000, 10000, zorder=-10, s=i / scale_fac, label=i, transform=pc, color="C1"
         )
