@@ -9,61 +9,6 @@ import matplotlib.dates as mdates
 from pathlib import Path
 
 
-def prep_for_plot(df):
-    """
-    Prepare DataFrame for plotting.
-
-    Get base_url, request_kwargs and file_type
-    from the request url. Discard the versions
-    of user-agents and separate ip addresses into
-    groups and subnets.
-
-    Parameters
-    ----------
-    df: polars.DataFrame
-        DataFrame with requests information
-
-    Returns
-    -------
-    polars.DataFrame
-        requests DataFrame with additional information, suitable for plotting
-    """
-    df = df.with_columns(pl.col("country").fill_null("unknown"))
-    df_parts = df["url"].to_pandas().str.replace(" ", "").str.split("?", expand=True)
-    df = df.with_columns(base_url=df_parts[0].str.split(".", expand=True)[0].values)
-    url_parts = df["base_url"].to_pandas().str.split("/", expand=True)
-    url_parts["protocol"] = None
-    url_parts.loc[url_parts[2] == "tabledap", "protocol"] = "tabledap"
-    url_parts.loc[url_parts[2] == "griddap", "protocol"] = "griddap"
-    url_parts.loc[url_parts[2] == "files", "protocol"] = "files"
-    url_parts.loc[url_parts[2] == "info", "protocol"] = "info"
-    url_parts["dataset_id"] = url_parts[3]
-    df = df.with_columns(erddap_request_type=url_parts["protocol"].values)
-    df = df.with_columns(dataset_id=url_parts["dataset_id"].values)
-    df = df.with_columns(
-        dataset_id=pl.when(pl.col("erddap_request_type").is_null())
-        .then(None)
-        .otherwise(pl.col("dataset_id"))
-    )
-    df = df.with_columns(request_kwargs=df_parts[1].values)
-    df = df.with_columns(file_type=df_parts[0].str.split(".", expand=True)[1].values)
-    df = df.with_columns(
-        user_agent_base=df["user-agent"]
-        .to_pandas()
-        .str.split(" ", expand=True)[0]
-        .str.split("/", expand=True)[0]
-        .values
-    )
-    ip_grid = df["ip"].to_pandas().str.split(".", expand=True)
-    ip_group = ip_grid[0] + "." + ip_grid[1]
-    ip_subnet = ip_grid[0] + "." + ip_grid[1] + "." + ip_grid[2]
-    df = df.with_columns(ip_group=ip_group.values)
-    df = df.with_columns(ip_subnet=ip_subnet.values)
-    df = df.sort(by="datetime")
-
-    return df
-
-
 def plot_daily_requests(df, num_days=7):
     """
     Plots a histogram of the number of requests per day.
@@ -253,9 +198,11 @@ def plot_for_single_ip(df_sub, fig_fn=None):
     start = df_sub.select("datetime").min()[0, 0] - datetime.timedelta(days=1)
     end = df_sub.select("datetime").max()[0, 0] + datetime.timedelta(days=1)
     bins = np.arange(start, end, datetime.timedelta(days=1))
-
     lon = df_sub.select("lon").mean()[0, 0]
     lat = df_sub.select("lat").mean()[0, 0]
+    if not lat or not lon:
+        print("no location data for this IP address. Skipping")
+        return
 
     name = f'{df_sub.select("country")[0, 0]} {ip}'
     fig = plt.figure(figsize=(20, 10), layout="constrained")
