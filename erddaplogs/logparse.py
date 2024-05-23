@@ -504,7 +504,7 @@ class ErddapLogParser:
         """Creates tables that are safe for sharing, including a query by location table and an anonymized table."""
         self.aggregate_location()
         self.anonymized = self.df.select(
-            ["ip", "datetime", "status-code", "bytes-sent", "url", "user-agent"]
+            ["ip", "datetime", "status-code", "bytes-sent", "erddap_request_type", "dataset_id", "file_type", "url", "user-agent"]
         )
         self.anonymize_user_agent()
         self.anonymize_ip()
