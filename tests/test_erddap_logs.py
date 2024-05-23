@@ -17,13 +17,13 @@ def test_parser():
     parser.get_ip_info(num_ips=3)
     assert parser.df.shape > (300, 20)
     parser.filter_organisations()
+    parser.parse_columns()
     parser.export_data()
     parser.df.write_parquet("example_data/df_example.pqt")
 
 
 def test_plots():
-    df = pl.read_parquet("example_data/df_example.pqt")
-    df = plot_functions.prep_for_plot(df)
+    df = pl.read_parquet("example_data/df_example.pqt").sort(by="datetime")
     plot_functions.plot_daily_requests(df, num_days=1)
     plot_functions.plot_bytes(df)
     plot_functions.plot_most_popular(df, col_name='dataset_id')
