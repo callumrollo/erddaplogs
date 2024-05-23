@@ -253,9 +253,11 @@ def plot_for_single_ip(df_sub, fig_fn=None):
     start = df_sub.select("datetime").min()[0, 0] - datetime.timedelta(days=1)
     end = df_sub.select("datetime").max()[0, 0] + datetime.timedelta(days=1)
     bins = np.arange(start, end, datetime.timedelta(days=1))
-
     lon = df_sub.select("lon").mean()[0, 0]
     lat = df_sub.select("lat").mean()[0, 0]
+    if not lat or not lon:
+        print("no location data for this IP address. Skipping")
+        return
 
     name = f'{df_sub.select("country")[0, 0]} {ip}'
     fig = plt.figure(figsize=(20, 10), layout="constrained")
