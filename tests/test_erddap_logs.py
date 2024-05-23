@@ -17,7 +17,9 @@ def test_parser():
     parser.get_ip_info(num_ips=3)
     assert parser.df.shape > (300, 20)
     parser.filter_organisations()
+    parser.parse_datasets_xml("example_data/datasets.xml")
     parser.parse_columns()
+    assert len(parser.df['dataset_type'].unique()) > 2
     parser.export_data()
     parser.df.write_parquet("example_data/df_example.pqt")
 

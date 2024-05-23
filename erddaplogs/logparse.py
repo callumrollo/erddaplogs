@@ -366,7 +366,7 @@ class ErddapLogParser:
             num_new_ips=num_ips,
         )
         self.ip = df_ip
-        self.df = self.df.join(df_ip, left_on="ip", right_on="query").sort("datetime")
+        self.df = self.df.join(df_ip, left_on="ip", right_on="query", how='left').sort("datetime")
 
     @_print_filter_stats
     def filter_non_erddap(self):
@@ -469,7 +469,7 @@ class ErddapLogParser:
     def parse_columns(self):
         self.df = _parse_columns(self.df)
         if not self.df_xml.is_empty():
-            self.df = self.df.join(self.df_xml, left_on="dataset_id", right_on="dataset_id").sort("datetime")
+            self.df = self.df.join(self.df_xml, left_on="dataset_id", right_on="dataset_id", how='left').sort("datetime")
 
     def aggregate_location(self):
         """Generates a dataframe that contains query counts by status code and location."""
