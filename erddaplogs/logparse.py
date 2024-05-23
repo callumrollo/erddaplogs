@@ -296,6 +296,7 @@ class ErddapLogParser:
     def __init__(self):
         self.df = pl.DataFrame()
         self.ip = pl.DataFrame()
+        self.df_xml = pl.DataFrame()
         self.verbose = False
         self.original_total_requests = 0
         self.filter_name = None
@@ -454,12 +455,21 @@ class ErddapLogParser:
             self.df = self.df.filter(~pl.col("url").str.contains(string))
         self.filter_name = "common strings"
 
-    def parse_datasets_xml(self, datasests_xml_path):
-        tree = ET.parse(datasests_xml_path)
+    def parse_datasets_xml(self, datasets_xml_path):
+        tree = ET.parse(datasets_xml_path)
         root = tree.getroot()
-        
+        dataset_id = []
+        dataset_type = []
+        for child in root:
+            if 'datasetID' in child.keys():
+                dataset_id.append(child.get('datasetID'))
+                dataset_type.append(child.get('type'))
+        self.df_xml = pl.DataFrame({'dataset_id': dataset_id, 'dataset_type': dataset_type})
+
     def parse_columns(self):
         self.df = _parse_columns(self.df)
+        if not self.df_xml.is_empty():
+            self.df = self.df.join(self.df_xml, left_on="dataset_id", right_on="dataset_id").sort("datetime")
 
     def aggregate_location(self):
         """Generates a dataframe that contains query counts by status code and location."""
