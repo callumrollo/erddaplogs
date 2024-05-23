@@ -1,12 +1,59 @@
 # erddaplogs
 
-Try it out on Binder [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/callumrollo/erddaplogs/HEAD?labpath=weblogs-parse-demo.ipynb)
-
 Quick utilities for parsing nginx and apache logs.
 
-This script takes apache and/or nginx logs as input. It is made to analyse visitors to an ERDDAP server, but should work on any web traffic.
+Try it out on Binder [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/callumrollo/erddaplogs/HEAD?labpath=weblogs-parse-demo.ipynb)
 
-The jupyter notebook performs the following steps:
+This package takes apache and/or nginx logs as input. It is made to analyse visitors to an ERDDAP server, but should work on any web traffic.
+
+### Installation
+
+* #### From pypi, using pip
+
+```sh
+pip install erddaplogs
+```
+
+* #### From the repo, using conda:
+
+```sh 
+git clone https://github.com/callumrollo/erddaplogs.git # clone the repo
+conda env create --file environment.yml # create the environment 
+conda activate erddaplogs # activate the environment
+```
+
+* #### From the repo, using pip
+
+```sh
+#First, clone the repo:
+git clone https://github.com/callumrollo/erddaplogs.git
+
+# Set up your environment directory to the path of your choice.
+# Here we'll use ~/virtualenvs/erddaplogs.  
+# Any parent directories should already exist.
+venv ~/virtualenvs/erddaplogs # create the environment
+. ~/virtualenvs/erddaplogs/bin/activate # activate the environment
+
+# go to the directory of the repo, as install the dependencies 
+# as user:
+pip install -r requirements.txt # install the dependencies
+# or as a developer, if you plan on contributing to the project:
+pip install . # install the dependencies
+```
+
+* #### with pip, locally
+
+```sh 
+# First, clone the repo:
+git clone https://github.com/callumrollo/erddaplogs.git 
+# then, inside the repo, execute
+python3 -m pip install -e .
+```
+
+### Example Jupyter Notebook
+
+You can find an example Jupyter Notebook 
+[here](https://github.com/callumrollo/erddaplogs/blob/main/weblogs-parse-demo.ipynb). It performs the following steps:
 
 1. Read in apache and nginx logs, combine them into one consistent dataframe
 2. Find the ips that made the greatest number of requests. Get their info from ip-api.com
