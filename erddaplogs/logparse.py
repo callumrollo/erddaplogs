@@ -1,4 +1,5 @@
 from copy import copy
+from datetime import datetime
 from apachelogs import LogParser
 from pathlib import Path
 import polars as pl
@@ -528,8 +529,9 @@ class ErddapLogParser:
     def export_data(self):
         """Exports the anonymized data to csv files that can be shared."""
         self.anonymize_requests()
-        self.anonymized.write_csv("anonymized.csv")
-        self.location.write_csv("location.csv")
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_")
+        self.anonymized.write_csv(timestamp + "anonymized.csv")
+        self.location.write_csv(timestamp + "location.csv")
 
     def undo_filter(self):
         """Reset to unfiltered DataFrame."""
