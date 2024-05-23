@@ -7,22 +7,19 @@ Try it out on Binder [![Binder](https://mybinder.org/badge_logo.svg)](https://my
 This package takes apache and/or nginx logs as input. It is made to analyse visitors to an ERDDAP server, but should work on any web traffic.
 
 ### Installation
-* #### From the repo, using conda/mamba:
 
-First, clone the repo:
-```sh 
-git clone https://github.com/callumrollo/erddaplogs.git
-```
-then you can use Conda:
+* #### From pypi, using pip
+
 ```sh
+pip install erddaplogs
+```
+
+* #### From the repo, using conda:
+
+```sh 
+git clone https://github.com/callumrollo/erddaplogs.git # clone the repo
 conda env create --file environment.yml # create the environment 
 conda activate erddaplogs # activate the environment
-```
-or Mamba:  
-
-```sh
-mamba env create --file environment.yml # create the environment 
-mamba activate erddaplogs # activate the environment
 ```
 
 * #### From the repo, using pip
@@ -41,13 +38,7 @@ venv ~/virtualenvs/erddaplogs # create the environment
 # as user:
 pip install -r requirements.txt # install the dependencies
 # or as a developer, if you plan on contributing to the project:
-pip install -r requirements-dev.txt # install the dependencies
-```
-
-* #### From pypi, using pip
-
-```sh
-pip install erddaplogs
+pip install . # install the dependencies
 ```
 
 * #### with pip, locally
