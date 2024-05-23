@@ -31,6 +31,7 @@ def test_anonymized_data():
     for blocked_col in ["user-agent", "lat", "lon", "org", "zip", "city"]:
         assert blocked_col not in parser.anonymized.columns
     assert parser.anonymized['ip'].dtype == pl.Int32
+    assert parser.location.columns == ['countryCode', 'regionName', 'city', 'len']
 
 
 def test_plots():
