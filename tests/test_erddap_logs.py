@@ -20,8 +20,16 @@ def test_parser():
     parser.parse_datasets_xml("example_data/datasets.xml")
     parser.parse_columns()
     assert len(parser.df['dataset_type'].unique()) > 2
-    parser.export_data()
     parser.df.write_parquet("example_data/df_example.pqt")
+
+
+def test_anonymized_data():
+    parser = ErddapLogParser()
+    parser.df = pl.read_parquet("example_data/df_example.pqt").sort(by="datetime")
+    parser.export_data()
+    assert "email=" not in "".join(parser.anonymized['url'].to_list())
+    assert "user-agent" not in parser.anonymized.columns
+    assert parser.anonymized['ip'].dtype == pl.Int32
 
 
 def test_plots():
