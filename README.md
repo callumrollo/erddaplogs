@@ -1,10 +1,15 @@
 # erddaplogs
 
-Quick utilities for parsing nginx and apache logs.
+[![Project Status: Active – The project has reached a stable, usable state and is being actively developed.](https://www.repostatus.org/badges/latest/active.svg)](https://www.repostatus.org/#active)
+
+![python versions](https://img.shields.io/pypi/pyversions/erddaplogs.svg)
+
+![pypi](https://badge.fury.io/py/erddaplogs.svg)
+
+
+A package for analysing traffic to an ERDDAP server by parsing nginx and apache logs.
 
 Try it out on Binder [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/callumrollo/erddaplogs/HEAD?labpath=weblogs-parse-demo.ipynb)
-
-This package takes apache and/or nginx logs as input. It is made to analyse visitors to an ERDDAP server, but should work on any web traffic.
 
 ### Installation
 
@@ -38,7 +43,8 @@ venv ~/virtualenvs/erddaplogs # create the environment
 # as user:
 pip install -r requirements.txt # install the dependencies
 # or as a developer, if you plan on contributing to the project:
-pip install . # install the dependencies
+pip install -r requirements-dev.txt # install the dependencies
+pip install .
 ```
 
 * #### with pip, locally
@@ -49,6 +55,26 @@ git clone https://github.com/callumrollo/erddaplogs.git
 # then, inside the repo, execute
 python3 -m pip install -e .
 ```
+### Example usage
+
+```python
+from erddaplogs.logparse import ErddapLogParser
+
+parser = ErddapLogParser()
+parser.load_nginx_logs("example_data/nginx_example_logs/")
+parser.parse_datasets_xml("example_data/datasets.xml")
+parser.filter_non_erddap()
+parser.filter_spam()
+parser.filter_locales()
+parser.filter_user_agents()
+parser.filter_common_strings()
+parser.get_ip_info()
+parser.filter_organisations()
+parser.parse_columns()
+parser.export_data()
+```
+
+This will read nginx logs from the user specified directory and write two files `<timestamp>anonymized.csv` and `<timestamp>location.csv` with anonymised user data. For more analysis options and plots, see the example jupyter notebook
 
 ### Example Jupyter Notebook
 
