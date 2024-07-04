@@ -187,6 +187,7 @@ def _get_ip_info(df, ip_info_csv, download_new=True, num_new_ips=60, verbose=Fal
                 "org": "",
                 "as": "",
                 "query": "",
+                "message": "",
             }
         )
     if download_new:
