@@ -19,42 +19,16 @@ Try it out on Binder [![Binder](https://mybinder.org/badge_logo.svg)](https://my
 pip install erddaplogs
 ```
 
-* #### From the repo, using conda:
-
-```sh 
-git clone https://github.com/callumrollo/erddaplogs.git # clone the repo
-conda env create --file environment.yml # create the environment 
-conda activate erddaplogs # activate the environment
-```
-
 * #### From the repo, using pip
 
 ```sh
 #First, clone the repo:
 git clone https://github.com/callumrollo/erddaplogs.git
-
-# Set up your environment directory to the path of your choice.
-# Here we'll use ~/virtualenvs/erddaplogs.  
-# Any parent directories should already exist.
-venv ~/virtualenvs/erddaplogs # create the environment
-. ~/virtualenvs/erddaplogs/bin/activate # activate the environment
-
-# go to the directory of the repo, as install the dependencies 
-# as user:
-pip install -r requirements.txt # install the dependencies
-# or as a developer, if you plan on contributing to the project:
+cd erddaplogs
 pip install -r requirements-dev.txt # install the dependencies
 pip install .
 ```
 
-* #### with pip, locally
-
-```sh 
-# First, clone the repo:
-git clone https://github.com/callumrollo/erddaplogs.git 
-# then, inside the repo, execute
-python3 -m pip install -e .
-```
 ### Example usage
 
 
@@ -83,9 +57,9 @@ parser.parse_columns()
 parser.export_data(output_dir=".") # Put the path to the output dir here. Preferably somewhere your ERDDAP can read
 ```
 
-This will read nginx logs from the user specified directory and write two files `<timestamp>_anonymized_requests.csv` and `<timestamp>_aggregated_locations.csv` with anonymised requests and aggregated location data respectively. 
+This will read nginx logs from the user specified directory and write two files `<timestamp>_anonymized_requests.csv` and `<timestamp>_aggregated_locations.csv` with anonymized requests and aggregated location data respectively. 
 
-ErddapLogParser can be run on a static directory of logs or as a cron job e.g. once per day. If run repeatedly, it will create a new file for `anonymized_requests` with only anonymised requests that have been received since the script was last run. The `aggregated_locations` file will be updated with the new request locations, only one file with cumulative location totals is retained. 
+ErddapLogParser can be run on a static directory of logs or as a cron job e.g. once per day. If run repeatedly, it will create a new file for `anonymized_requests` with only anonymized requests that have been received since the script was last run. The `aggregated_locations` file will be updated with the new request locations, only one file with cumulative location totals is retained. 
 
 To re-analyze all the input requests, first delete the output files in `output_dir` then re-run.
 
@@ -98,8 +72,6 @@ You can see what the resulting stats look like on the VOTO ERDDAP server:
  
 For more analysis options and plots, see the example jupyter notebook
 
-For the full, non-anonymised data, save the DataFrame parser.df at the end of processing. These data are not saved by default.
-
 ### Example Jupyter Notebook
 
 You can find an example Jupyter Notebook 
@@ -108,13 +80,13 @@ You can find an example Jupyter Notebook
 1. Read in apache and nginx logs, combine them into one consistent dataframe
 2. Find the ips that made the greatest number of requests. Get their info from ip-api.com
 3. Remove suspected spam/bot requests
-4. Perform basic anaylysis to graph number of requests and users over time, most popular datasets/datatypes and geographic distribution of users
+4. Perform basic analysis to graph number of requests and users over time, most popular datasets/datatypes and geographic distribution of users
 
-A blog post explaining this notebook in more detail can be found at [https://callumrollo.com/weblogparse.html](https://callumrollo.com/weblogparse.html)
+A rather out od date blog post explaining this notebook in more detail can be found at [https://callumrollo.com/weblogparse.html](https://callumrollo.com/weblogparse.html)
 
 ### A note on example data
 
-If you don't have your own ERDDAP logs to hand, you can use the example data in `example_data/nginx_example_logs`. This is anonymmised data from a production ERDDAPP server [erddap.observations.voiceoftheocean.org](https://erddap.observations.voiceoftheocean.org/erddap). The ip addresses have been randommly generated, as have the user agents. All subscription emails have been replaced with fake@example.com
+If you don't have your own ERDDAP logs to hand, you can use the example data in `example_data/nginx_example_logs`. This is anonymized data from a production ERDDAP server [erddap.observations.voiceoftheocean.org](https://erddap.observations.voiceoftheocean.org/erddap). The ip addresses have been randomly generated, as have the user agents. All subscription emails have been replaced with fake@example.com
 
 
 ### License
