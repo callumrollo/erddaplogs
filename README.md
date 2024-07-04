@@ -57,12 +57,21 @@ python3 -m pip install -e .
 ```
 ### Example usage
 
+
+First, get the logs copied locally to a directory you can read and unzip them. e.g.:
+
+```bash
+rsync /var/log/nginx/* logs
+gzip -dfr * logs
+```
+Next, run erddaplogs
+
 ```python
 from erddaplogs.logparse import ErddapLogParser
 
 parser = ErddapLogParser()
-parser.load_nginx_logs("example_data/nginx_example_logs/")
-parser.parse_datasets_xml("example_data/datasets.xml")
+parser.load_nginx_logs("example_data/nginx_example_logs/") # replace with the path to your logs
+parser.parse_datasets_xml("example_data/datasets.xml") # replace with the path to your xml, or remove this line
 parser.filter_non_erddap()
 parser.filter_spam()
 parser.filter_locales()
@@ -71,10 +80,25 @@ parser.filter_common_strings()
 parser.get_ip_info()
 parser.filter_organisations()
 parser.parse_columns()
-parser.export_data()
+parser.export_data(output_dir=".") # Put the path to the output dir here. Preferably somewhere your ERDDAP can read
 ```
 
-This will read nginx logs from the user specified directory and write two files `<timestamp>anonymized.csv` and `<timestamp>location.csv` with anonymised user data. For more analysis options and plots, see the example jupyter notebook
+This will read nginx logs from the user specified directory and write two files `<timestamp>_anonymized_requests.csv` and `<timestamp>_aggregated_locations.csv` with anonymised requests and aggregated location data respectively. 
+
+ErddapLogParser can be run on a static directory of logs or as a cron job e.g. once per day. If run repeatedly, it will create a new file for `anonymized_requests` with only anonymised requests that have been received since the script was last run. The `aggregated_locations` file will be updated with the new request locations, only one file with cumulative location totals is retained. 
+
+To re-analyze all the input requests, first delete the output files in `output_dir` then re-run.
+
+Optionally, the resulting anonymized data can be shared on your ERDDAP in two datasets `requests` and `locations`. To do this, add the contents of the example xml files `requests.xml` and `locations.xml` from the `example_data` directory to your `datasets.xml`. Make sure to update the entries for **fileDir** and **institution**. The other fields can remain as-is.
+
+You can see what the resulting stats look like on the VOTO ERDDAP server:
+
+- https://erddap.observations.voiceoftheocean.org/erddap/tabledap/requests.html
+- https://erddap.observations.voiceoftheocean.org/erddap/tabledap/locations.html
+ 
+For more analysis options and plots, see the example jupyter notebook
+
+For the full, non-anonymised data, save the DataFrame parser.df at the end of processing. These data are not saved by default.
 
 ### Example Jupyter Notebook
 

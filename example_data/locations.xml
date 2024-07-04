@@ -1,0 +1,67 @@
+<dataset type="EDDTableFromAsciiFiles" datasetID="locations" active="true">
+    <reloadEveryNMinutes>10080</reloadEveryNMinutes>
+    <updateEveryNMillis>10000</updateEveryNMillis>
+    <fileDir>/path/to/files/</fileDir>
+    <fileNameRegex>.*aggregated_locations.csv</fileNameRegex>
+    <recursive>true</recursive>
+    <pathRegex>.*</pathRegex>
+    <metadataFrom>last</metadataFrom>
+    <standardizeWhat>0</standardizeWhat>
+    <charset>ISO-8859-1</charset>
+    <columnSeparator>,</columnSeparator>
+    <columnNamesRow>1</columnNamesRow>
+    <firstDataRow>2</firstDataRow>
+    <sortedColumnSourceName></sortedColumnSourceName>
+    <sortFilesBySourceNames></sortFilesBySourceNames>
+    <fileTableInMemory>false</fileTableInMemory>
+    <addAttributes>
+        <att name="cdm_data_type">Other</att>
+        <att name="Conventions">COARDS, CF-1.10, ACDD-1.3</att>
+        <att name="infoUrl">https://github.com/callumrollo/erddaplogs</att>
+        <att name="institution">Your Institution Here</att>
+        <att name="keywords">city, code, country, countryCode, data, len, local, name, region, regionName, source</att>
+        <att name="license">[standard]</att>
+        <att name="sourceUrl">(local files)</att>
+        <att name="standard_name_vocabulary">CF Standard Name Table v70</att>
+        <att name="summary">Usage data for this ERDDAP server - Aggregated locations of requests</att>
+        <att name="title">locations</att>
+    </addAttributes>
+    <dataVariable>
+        <sourceName>countryCode</sourceName>
+        <destinationName>countryCode</destinationName>
+        <dataType>String</dataType>
+        <addAttributes>
+            <att name="ioos_category">Location</att>
+            <att name="long_name">Country Code</att>
+        </addAttributes>
+    </dataVariable>
+    <dataVariable>
+        <sourceName>regionName</sourceName>
+        <destinationName>regionName</destinationName>
+        <dataType>String</dataType>
+        <addAttributes>
+            <att name="ioos_category">Location</att>
+            <att name="long_name">Region Name</att>
+        </addAttributes>
+    </dataVariable>
+    <dataVariable>
+        <sourceName>city</sourceName>
+        <destinationName>city</destinationName>
+        <dataType>String</dataType>
+        <addAttributes>
+            <att name="ioos_category">Location</att>
+            <att name="long_name">City</att>
+        </addAttributes>
+    </dataVariable>
+    <dataVariable>
+        <sourceName>total_requests</sourceName>
+        <destinationName>total_requests</destinationName>
+        <dataType>int</dataType>
+        <addAttributes>
+            <att name="_FillValue" type="int">2147483647</att>
+            <att name="ioos_category">Unknown</att>
+            <att name="long_name">total_requests</att>
+        </addAttributes>
+    </dataVariable>
+</dataset>
+
