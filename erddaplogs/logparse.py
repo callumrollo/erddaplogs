@@ -1,5 +1,5 @@
+import os
 from copy import copy
-from datetime import datetime
 from apachelogs import LogParser
 from pathlib import Path
 import polars as pl
@@ -133,7 +133,7 @@ def _load_nginx_logs(nginx_logs_dir, wildcard_fname):
     # convert timestamp to datetime
     df = df.with_columns(
         pl.col("datetime")
-        .str.strptime(pl.Datetime, format="%d/%b/%Y:%H:%M:%S +0000")
+        .str.strptime(pl.Datetime, format="%d/%b/%Y:%H:%M:%S %z")
         .dt.replace_time_zone(None)
     )
     df_nginx = df.sort(by="datetime")
@@ -474,7 +474,8 @@ class ErddapLogParser:
 
     def aggregate_location(self):
         """Generates a dataframe that contains query counts by status code and location."""
-        self.location = self.df.group_by(["countryCode", "regionName", "city"]).len()
+        self.location = (self.df.group_by(["countryCode", "regionName", "city"]).len().fill_null("unknown")
+                         .rename({'len': 'total_requests'}))
 
     def anonymize_user_agent(self):
         """Modifies the anonymized dataframe to have browser, device, and os names instead of full user agent."""
@@ -495,11 +496,11 @@ class ErddapLogParser:
         )
         self.anonymized = self.anonymized.drop("user-agent")
 
-    def anonymize_ip(self):
+    def anonymize_ip(self, start_ip):
         """Replaces the ip address with a unique number identifier."""
         unique_df = pl.DataFrame(
             {"ip": self.anonymized.get_column("ip").unique()}
-        ).with_row_index()
+        ).with_row_index().with_columns(pl.col("index") + start_ip)
         self.anonymized = self.anonymized.with_columns(
             pl.col("ip").map_elements(
                 lambda ip: unique_df.row(by_predicate=(pl.col("ip") == ip), named=True)[
@@ -518,22 +519,59 @@ class ErddapLogParser:
             )
         )
 
-    def anonymize_requests(self):
+    def anonymize_requests(self, start_ip=0):
         """Creates tables that are safe for sharing, including a query by location table and an anonymized table."""
         self.aggregate_location()
         self.anonymized = self.df.select(
             pl.selectors.matches("^^ip$|^datetime$|^status-code$|^bytes-sent$|^erddap_request_type$|^dataset_type$|^dataset_id$|^file_type$|^url$|^user-agent$")
         )
         self.anonymize_user_agent()
-        self.anonymize_ip()
+        self.anonymize_ip(start_ip)
         self.anonymize_query()
 
-    def export_data(self):
+    def export_data(self, output_dir=Path(os.getcwd())):
         """Exports the anonymized data to csv files that can be shared."""
-        self.anonymize_requests()
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_")
-        self.anonymized.write_csv(timestamp + "anonymized.csv")
-        self.location.write_csv(timestamp + "location.csv")
+        output_dir = Path(output_dir)
+        if not output_dir.exists():
+            output_dir.mkdir(parents=True)
+        max_ip = -1
+        previous_anon_files = list(output_dir.glob("*anonymized_requests.csv"))
+        if len(previous_anon_files) != 0:
+            previous_anon_files.sort()
+            most_recent_file = previous_anon_files[-1]
+            df_last = pl.read_csv(most_recent_file, try_parse_dates=True)
+            last_request = df_last['datetime'].max()
+            max_ip = df_last['ip'].max()
+            df_full = self.df.clone()
+            self.df = self.df.filter(pl.col('datetime') > last_request)
+        self.anonymize_requests(start_ip=max_ip+1)
+        if len(previous_anon_files) != 0:
+            self.df = df_full
+        timestamp = self.df['datetime'].max().strftime("%Y%m%d_%H%M%S_")
+        if self.df.is_empty():
+            self.anonymized.write_csv(output_dir / f"{timestamp}anonymized_requests.csv")
+        existing_loc_files = list(output_dir.glob("*aggregated_locations.csv"))
+        if len(existing_loc_files) != 0:
+            existing_loc_files.sort()
+            latest_loc_file = existing_loc_files[-1]
+            old_locs = pl.read_csv(latest_loc_file)
+            old_locs = old_locs.with_columns(old_locs.select(pl.concat_str([pl.col("regionName"), pl.col("city")]).alias('region_city')))
+            new_locs = self.location.with_columns(self.location.select(pl.concat_str([pl.col("regionName"), pl.col("city")]).alias('region_city')))
+            df_vertical_concat = pl.concat(
+                [
+                    old_locs,
+                    new_locs,
+                ],
+                how="vertical",
+            )
+            totals = df_vertical_concat.group_by('region_city').sum().sort('region_city')
+            meta = df_vertical_concat.group_by('region_city').first().sort('region_city')
+            meta = meta.with_columns(total_requests = totals['total_requests'])
+            self.location = meta[['countryCode', 'regionName', 'city', 'total_requests']]
+        if self.location.is_empty():
+            self.location.write_csv(output_dir / f"{timestamp}aggregated_locations.csv")
+        if len(existing_loc_files) != 0:
+            os.unlink(str(latest_loc_file))
 
     def undo_filter(self):
         """Reset to unfiltered DataFrame."""
