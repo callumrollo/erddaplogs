@@ -73,10 +73,10 @@ def _plot_popularity_bar(ax, df, col_name, rows):
     counts = Counter(df[col_name].to_list()).most_common()
     if None in counts[0]:
         counts = counts[1:]
+    names, counts = list(map(list, zip(*counts)))
     df_counts = (
-        pl.DataFrame(counts)[:rows]
+        pl.DataFrame({col_name: names, "counts": counts})[:rows]
         .fill_null("unknown")
-        .rename({"column_0": col_name, "column_1": "counts"})
     )
     ax.barh(
         np.arange(len(df_counts)),
