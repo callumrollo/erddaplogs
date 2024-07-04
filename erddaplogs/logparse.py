@@ -475,7 +475,7 @@ class ErddapLogParser:
     def aggregate_location(self):
         """Generates a dataframe that contains query counts by status code and location."""
         self.location = (self.df.group_by(["countryCode", "regionName", "city"]).len().fill_null("unknown")
-                         .rename({'len': 'total_requests'}))
+                         .rename({'len': 'total_requests'})).cast({'total_requests': pl.Int64})
 
     def anonymize_user_agent(self):
         """Modifies the anonymized dataframe to have browser, device, and os names instead of full user agent."""
@@ -536,19 +536,21 @@ class ErddapLogParser:
             output_dir.mkdir(parents=True)
         max_ip = -1
         previous_anon_files = list(output_dir.glob("*anonymized_requests.csv"))
+        df_full = self.df.clone()
         if len(previous_anon_files) != 0:
             previous_anon_files.sort()
             most_recent_file = previous_anon_files[-1]
             df_last = pl.read_csv(most_recent_file, try_parse_dates=True)
-            last_request = df_last['datetime'].max()
-            max_ip = df_last['ip'].max()
-            df_full = self.df.clone()
-            self.df = self.df.filter(pl.col('datetime') > last_request)
+            if not df_last.is_empty():
+                last_request = df_last['datetime'].max()
+                max_ip = df_last['ip'].max()
+                df_full = self.df.clone()
+                self.df = self.df.filter(pl.col('datetime') > last_request)
         self.anonymize_requests(start_ip=max_ip+1)
         if len(previous_anon_files) != 0:
             self.df = df_full
         timestamp = self.df['datetime'].max().strftime("%Y%m%d_%H%M%S_")
-        if self.df.is_empty():
+        if not self.anonymized.is_empty():
             self.anonymized.write_csv(output_dir / f"{timestamp}anonymized_requests.csv")
         existing_loc_files = list(output_dir.glob("*aggregated_locations.csv"))
         if len(existing_loc_files) != 0:
@@ -568,10 +570,13 @@ class ErddapLogParser:
             meta = df_vertical_concat.group_by('region_city').first().sort('region_city')
             meta = meta.with_columns(total_requests = totals['total_requests'])
             self.location = meta[['countryCode', 'regionName', 'city', 'total_requests']]
-        if self.location.is_empty():
+        if not self.location.is_empty():
             self.location.write_csv(output_dir / f"{timestamp}aggregated_locations.csv")
-        if len(existing_loc_files) != 0:
-            os.unlink(str(latest_loc_file))
+        existing_loc_files = list(output_dir.glob("*aggregated_locations.csv"))
+        if len(existing_loc_files) > 1:
+            existing_loc_files.sort()
+            for old_file in existing_loc_files[:-1]:
+                os.unlink(str(old_file))
 
     def undo_filter(self):
         """Reset to unfiltered DataFrame."""
