@@ -4,5 +4,6 @@ __pycache__
 /figs_by_ip
 erddaplogs.egg-info
 erddaplogs/_version.py
-*anonymized.csv
-*location.csv
+*aggregated_locations.csv
+*anonymized_requests.csv
+
