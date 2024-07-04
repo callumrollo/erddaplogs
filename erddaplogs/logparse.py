@@ -1,6 +1,5 @@
 import os
 from copy import copy
-from apachelogs import LogParser
 from pathlib import Path
 import polars as pl
 from collections import Counter
@@ -9,58 +8,6 @@ import requests
 import re
 import gzip
 import xml.etree.ElementTree as ET
-
-
-def _load_apache_logs(apache_logs_dir,wildcard_fname):
-    """
-    Parses apache logs.
-
-    Parameters
-    ----------
-    apache_logs_dir: str
-        dir with apache log files
-    wildcard_fname: str
-        apache access logfile name string allowing for wildcard
-    Returns
-    -------
-    polars.DataFrame
-        parsed requests information
-    """
-    apache_logs = list(Path(apache_logs_dir).glob(wildcard_fname))
-    if len(apache_logs) == 0:
-        raise ValueError(
-            f"Supplied directory {apache_logs_dir} contains no access.log files",
-        )
-    parser = LogParser('%h %l %u %t "%r" %>s %b "%{Referer}i" "%{User-Agent}i"')
-    dt, ip, url, ua, code, bytes_sent, referer = [], [], [], [], [], [], []
-    for fn in apache_logs:
-        with open(fn) as fp:
-            for entry in parser.parse_lines(fp):
-                try:
-                    this_url = entry.request_line.split(" ")[1]
-                except IndexError:
-                    this_url = ""
-                dt.append(entry.request_time)
-                ip.append(entry.remote_host)
-                url.append(this_url)
-                ua.append(entry.headers_in["User-Agent"])
-                code.append(entry.final_status)
-                bytes_sent.append(entry.bytes_sent)
-                referer.append(entry.headers_in["Referer"])
-    df = pl.DataFrame(
-        {
-            "ip": ip,
-            "datetime": dt,
-            "url": url,
-            "user-agent": ua,
-            "status-code": code,
-            "bytes-sent": bytes_sent,
-            "referer": referer,
-        }
-    ).with_columns(pl.col("datetime").dt.replace_time_zone(None))
-    df = df.with_columns(pl.col("status-code").cast(pl.Int64))
-    df = df.with_columns(pl.col("bytes-sent").cast(pl.Int64))
-    return df
 
 
 def _load_nginx_logs(nginx_logs_dir, wildcard_fname):
@@ -78,7 +25,7 @@ def _load_nginx_logs(nginx_logs_dir, wildcard_fname):
     polars.DataFrame
         parsed requests information
     """
-    # nginx log parser from https://gist.github.com/hreeder/f1ffe1408d296ce0591d
+    # nginx log parser from  Harry Reeder @hreeder https://gist.github.com/hreeder/f1ffe1408d296ce0591d
     csvs = list(Path(nginx_logs_dir).glob(wildcard_fname))
     if len(csvs) == 0:
         raise ValueError(
@@ -311,6 +258,11 @@ class ErddapLogParser:
             print(f"DataFrame now has {self.original_total_requests} lines")
 
     def subset_df(self, rows=1000):
+        if self.df.shape[0] < rows:
+            print(
+                f"DataFrame length {self.df.shape[0]} lines is less than requested {rows} rows. Returning"
+            )
+            return
         """Subset the requests DataFrame. Default rows=1000."""
         stride = int(self.df.shape[0] / rows)
         if self.verbose:
@@ -326,7 +278,7 @@ class ErddapLogParser:
 
     def load_apache_logs(self, apache_logs_dir: str, wildcard_fname="*access.log*"):
         """Parse apache logs."""
-        df_apache = _load_apache_logs(apache_logs_dir, wildcard_fname)
+        df_apache = _load_nginx_logs(apache_logs_dir, wildcard_fname)
         if self.verbose:
             print(f"loaded {len(df_apache)} log lines from {apache_logs_dir}")
         df_combi = pl.concat(
