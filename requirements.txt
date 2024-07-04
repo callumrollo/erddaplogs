@@ -3,5 +3,4 @@ pandas
 polars>=1.0.0
 numpy<2
 pyarrow
-apachelogs
 user_agents
