@@ -4,7 +4,8 @@ pandas
 matplotlib
 jupyterlab
 requests
-polars<=0.20.10
+polars>=1.0.0
+numpy<2
 tqdm
 apachelogs
 pyarrow

@@ -1,6 +1,6 @@
 requests
 pandas
-polars<=0.20.10
+polars>=1.0.0
 pyarrow
 apachelogs
 user_agents
