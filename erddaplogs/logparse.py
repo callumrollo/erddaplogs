@@ -69,14 +69,14 @@ def _load_nginx_logs(nginx_logs_dir, wildcard_fname):
             "ip": ip,
             "datetime": datetimestring,
             "url": url,
-            "user-agent": useragent,
+            "user_agent": useragent,
             "status-code": status,
-            "bytes-sent": bytessent,
+            "bytes_sent": bytessent,
             "referer": referer,
         }
     )
     df = df.with_columns(pl.col("status-code").cast(pl.Int64))
-    df = df.with_columns(pl.col("bytes-sent").cast(pl.Int64))
+    df = df.with_columns(pl.col("bytes_sent").cast(pl.Int64))
     # convert timestamp to datetime
     df = df.with_columns(
         pl.col("datetime")
@@ -172,7 +172,7 @@ def _parse_columns(df):
 
     Get base_url, request_kwargs and file_type
     from the request url. Discard the versions
-    of user-agents and separate ip addresses into
+    of user_agents and separate ip addresses into
     groups and subnets.
 
     Parameters
@@ -209,7 +209,7 @@ def _parse_columns(df):
         file_type=df_parts[0].str.split(".", expand=True)[1].astype(str).values
     )
     df = df.with_columns(
-        user_agent_base=df["user-agent"]
+        user_agent_base=df["user_agent"]
         .to_pandas()
         .str.split(" ", expand=True)[0]
         .str.split("/", expand=True)[0]
@@ -353,7 +353,7 @@ class ErddapLogParser:
         """Filter out requests from bots."""
         # Added by Samantha Ouertani at NOAA AOML Jan 2024
         self.df = self.df.filter(
-            ~pl.col("user-agent").map_elements(
+            ~pl.col("user_agent").map_elements(
                 lambda ua: parse(ua).is_bot, return_dtype=pl.Boolean
             )
         )
@@ -447,21 +447,21 @@ class ErddapLogParser:
     def anonymize_user_agent(self):
         """Modifies the anonymized dataframe to have browser, device, and os names instead of full user agent."""
         self.anonymized = self.anonymized.with_columns(
-            pl.col("user-agent")
+            pl.col("user_agent")
             .map_elements(lambda ua: parse(ua).browser.family, return_dtype=pl.String)
             .alias("BrowserFamily")
         )
         self.anonymized = self.anonymized.with_columns(
-            pl.col("user-agent")
+            pl.col("user_agent")
             .map_elements(lambda ua: parse(ua).device.family, return_dtype=pl.String)
             .alias("DeviceFamily")
         )
         self.anonymized = self.anonymized.with_columns(
-            pl.col("user-agent")
+            pl.col("user_agent")
             .map_elements(lambda ua: parse(ua).os.family, return_dtype=pl.String)
             .alias("OS")
         )
-        self.anonymized = self.anonymized.drop("user-agent")
+        self.anonymized = self.anonymized.drop("user_agent")
 
     def anonymize_ip(self, start_ip):
         """Replaces the ip address with a unique number identifier."""
@@ -493,7 +493,7 @@ class ErddapLogParser:
         self.aggregate_location()
         self.anonymized = self.df.select(
             pl.selectors.matches(
-                "^^ip$|^datetime$|^status-code$|^bytes-sent$|^erddap_request_type$|^dataset_type$|^dataset_id$|^file_type$|^url$|^user-agent$"
+                "^^ip$|^datetime$|^status-code$|^bytes_sent$|^erddap_request_type$|^dataset_type$|^dataset_id$|^file_type$|^url$|^user_agent$"
             )
         )
         self.anonymize_user_agent()

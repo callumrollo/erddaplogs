@@ -28,7 +28,7 @@ def test_anonymized_data():
     parser.df = pl.read_parquet("example_data/df_example.pqt").sort(by="datetime")
     parser.export_data()
     assert "email=" not in "".join(parser.anonymized['url'].to_list())
-    for blocked_col in ["user-agent", "lat", "lon", "org", "zip", "city"]:
+    for blocked_col in ["user_agent", "lat", "lon", "org", "zip", "city"]:
         assert blocked_col not in parser.anonymized.columns
     assert parser.anonymized['ip'].dtype == pl.Int32
     assert parser.location.columns == ['countryCode', 'regionName', 'city', 'total_requests']

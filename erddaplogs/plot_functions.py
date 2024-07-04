@@ -168,10 +168,10 @@ def plot_bytes(df, days=3):
 
     """
     daily_bytes = df.group_by_dynamic("datetime", every=f"{days}d").agg(
-        pl.col("bytes-sent").sum()
+        pl.col("bytes_sent").sum()
     )
     fig, ax = plt.subplots(figsize=(12, 8))
-    ax.bar(daily_bytes["datetime"], daily_bytes["bytes-sent"] / 1024**3)
+    ax.bar(daily_bytes["datetime"], daily_bytes["bytes_sent"] / 1024**3)
     ax.set(ylabel=f"GB sent per {days} days")
 
 
@@ -246,7 +246,7 @@ def plot_for_single_ip(df_sub, fig_fn=None):
         if key in ("country", "regionName", "city", "zip", "org", "as"):
             i += 1
             ax2.text(0, -i, f"{key}: {val[0]}")
-    for counter_var in ["user-agent", "request_kwargs"]:
+    for counter_var in ["user_agent", "request_kwargs"]:
         counter_val = Counter(df_sub[counter_var].drop_nulls().to_list()).most_common()
         if not counter_val:
             continue
