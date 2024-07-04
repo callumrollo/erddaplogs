@@ -187,7 +187,9 @@ def _parse_columns(df):
     """
     df = df.with_columns(pl.col("country").fill_null("unknown"))
     df_parts = df["url"].to_pandas().str.replace(" ", "").str.split("?", expand=True)
-    df = df.with_columns(base_url=df_parts[0].str.split(".", expand=True)[0].astype(str).values)
+    df = df.with_columns(
+        base_url=df_parts[0].str.split(".", expand=True)[0].astype(str).values
+    )
     url_parts = df["base_url"].to_pandas().str.split("/", expand=True)
     url_parts["protocol"] = None
     url_parts.loc[url_parts[2] == "tabledap", "protocol"] = "tabledap"
@@ -203,7 +205,9 @@ def _parse_columns(df):
         .otherwise(pl.col("dataset_id"))
     )
     df = df.with_columns(request_kwargs=df_parts[1].astype(str).values)
-    df = df.with_columns(file_type=df_parts[0].str.split(".", expand=True)[1].astype(str).values)
+    df = df.with_columns(
+        file_type=df_parts[0].str.split(".", expand=True)[1].astype(str).values
+    )
     df = df.with_columns(
         user_agent_base=df["user-agent"]
         .to_pandas()
@@ -320,7 +324,9 @@ class ErddapLogParser:
             num_new_ips=num_ips,
         )
         self.ip = df_ip
-        self.df = self.df.join(df_ip, left_on="ip", right_on="query", how='left').sort("datetime")
+        self.df = self.df.join(df_ip, left_on="ip", right_on="query", how="left").sort(
+            "datetime"
+        )
 
     @_print_filter_stats
     def filter_non_erddap(self):
@@ -415,20 +421,28 @@ class ErddapLogParser:
         dataset_id = []
         dataset_type = []
         for child in root:
-            if 'datasetID' in child.keys():
-                dataset_id.append(child.get('datasetID'))
-                dataset_type.append(child.get('type'))
-        self.df_xml = pl.DataFrame({'dataset_id': dataset_id, 'dataset_type': dataset_type})
+            if "datasetID" in child.keys():
+                dataset_id.append(child.get("datasetID"))
+                dataset_type.append(child.get("type"))
+        self.df_xml = pl.DataFrame(
+            {"dataset_id": dataset_id, "dataset_type": dataset_type}
+        )
 
     def parse_columns(self):
         self.df = _parse_columns(self.df)
         if not self.df_xml.is_empty():
-            self.df = self.df.join(self.df_xml, left_on="dataset_id", right_on="dataset_id", how='left').sort("datetime")
+            self.df = self.df.join(
+                self.df_xml, left_on="dataset_id", right_on="dataset_id", how="left"
+            ).sort("datetime")
 
     def aggregate_location(self):
         """Generates a dataframe that contains query counts by status code and location."""
-        self.location = (self.df.group_by(["countryCode", "regionName", "city"]).len().fill_null("unknown")
-                         .rename({'len': 'total_requests'})).cast({'total_requests': pl.Int64})
+        self.location = (
+            self.df.group_by(["countryCode", "regionName", "city"])
+            .len()
+            .fill_null("unknown")
+            .rename({"len": "total_requests"})
+        ).cast({"total_requests": pl.Int64})
 
     def anonymize_user_agent(self):
         """Modifies the anonymized dataframe to have browser, device, and os names instead of full user agent."""
@@ -451,9 +465,11 @@ class ErddapLogParser:
 
     def anonymize_ip(self, start_ip):
         """Replaces the ip address with a unique number identifier."""
-        unique_df = pl.DataFrame(
-            {"ip": self.anonymized.get_column("ip").unique()}
-        ).with_row_index().with_columns(pl.col("index") + start_ip)
+        unique_df = (
+            pl.DataFrame({"ip": self.anonymized.get_column("ip").unique()})
+            .with_row_index()
+            .with_columns(pl.col("index") + start_ip)
+        )
         self.anonymized = self.anonymized.with_columns(
             pl.col("ip").map_elements(
                 lambda ip: unique_df.row(by_predicate=(pl.col("ip") == ip), named=True)[
@@ -476,7 +492,9 @@ class ErddapLogParser:
         """Creates tables that are safe for sharing, including a query by location table and an anonymized table."""
         self.aggregate_location()
         self.anonymized = self.df.select(
-            pl.selectors.matches("^^ip$|^datetime$|^status-code$|^bytes-sent$|^erddap_request_type$|^dataset_type$|^dataset_id$|^file_type$|^url$|^user-agent$")
+            pl.selectors.matches(
+                "^^ip$|^datetime$|^status-code$|^bytes-sent$|^erddap_request_type$|^dataset_type$|^dataset_id$|^file_type$|^url$|^user-agent$"
+            )
         )
         self.anonymize_user_agent()
         self.anonymize_ip(start_ip)
@@ -495,23 +513,37 @@ class ErddapLogParser:
             most_recent_file = previous_anon_files[-1]
             df_last = pl.read_csv(most_recent_file, try_parse_dates=True)
             if not df_last.is_empty():
-                last_request = df_last['datetime'].max()
-                max_ip = df_last['ip'].max()
+                last_request = df_last["datetime"].max()
+                max_ip = df_last["ip"].max()
                 df_full = self.df.clone()
-                self.df = self.df.filter(pl.col('datetime') > last_request)
-        self.anonymize_requests(start_ip=max_ip+1)
+                self.df = self.df.filter(pl.col("datetime") > last_request)
+        self.anonymize_requests(start_ip=max_ip + 1)
         if len(previous_anon_files) != 0:
             self.df = df_full
-        timestamp = self.df['datetime'].max().strftime("%Y%m%d_%H%M%S_")
+        timestamp = self.df["datetime"].max().strftime("%Y%m%d_%H%M%S_")
         if not self.anonymized.is_empty():
-            self.anonymized.write_csv(output_dir / f"{timestamp}anonymized_requests.csv")
+            self.anonymized.write_csv(
+                output_dir / f"{timestamp}anonymized_requests.csv"
+            )
         existing_loc_files = list(output_dir.glob("*aggregated_locations.csv"))
         if len(existing_loc_files) != 0:
             existing_loc_files.sort()
             latest_loc_file = existing_loc_files[-1]
             old_locs = pl.read_csv(latest_loc_file)
-            old_locs = old_locs.with_columns(old_locs.select(pl.concat_str([pl.col("regionName"), pl.col("city")]).alias('region_city')))
-            new_locs = self.location.with_columns(self.location.select(pl.concat_str([pl.col("regionName"), pl.col("city")]).alias('region_city')))
+            old_locs = old_locs.with_columns(
+                old_locs.select(
+                    pl.concat_str([pl.col("regionName"), pl.col("city")]).alias(
+                        "region_city"
+                    )
+                )
+            )
+            new_locs = self.location.with_columns(
+                self.location.select(
+                    pl.concat_str([pl.col("regionName"), pl.col("city")]).alias(
+                        "region_city"
+                    )
+                )
+            )
             df_vertical_concat = pl.concat(
                 [
                     old_locs,
@@ -519,10 +551,16 @@ class ErddapLogParser:
                 ],
                 how="vertical",
             )
-            totals = df_vertical_concat.group_by('region_city').sum().sort('region_city')
-            meta = df_vertical_concat.group_by('region_city').first().sort('region_city')
-            meta = meta.with_columns(total_requests = totals['total_requests'])
-            self.location = meta[['countryCode', 'regionName', 'city', 'total_requests']]
+            totals = (
+                df_vertical_concat.group_by("region_city").sum().sort("region_city")
+            )
+            meta = (
+                df_vertical_concat.group_by("region_city").first().sort("region_city")
+            )
+            meta = meta.with_columns(total_requests=totals["total_requests"])
+            self.location = meta[
+                ["countryCode", "regionName", "city", "total_requests"]
+            ]
         if not self.location.is_empty():
             self.location.write_csv(output_dir / f"{timestamp}aggregated_locations.csv")
         existing_loc_files = list(output_dir.glob("*aggregated_locations.csv"))
