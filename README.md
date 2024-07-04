@@ -85,7 +85,7 @@ You can find an example Jupyter Notebook `weblogs-parse-demo.ipynb` in the `note
 
 A rather out od date blog post explaining this notebook in more detail can be found at [https://callumrollo.com/weblogparse.html](https://callumrollo.com/weblogparse.html)
 
-A second notebook called `analyse_anonymized_usage` shows some examples of plotting the anonymized datasets made available on the VOTO ERDDAP
+A second notebook called `analyze_anonymized_usage` shows some examples of plotting the anonymized datasets made available on the VOTO ERDDAP
 
 ### A note on example data
 

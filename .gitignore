@@ -7,3 +7,4 @@ erddaplogs/_version.py
 *aggregated_locations.csv
 *anonymized_requests.csv
 
+notebooks/figs_by_ip
