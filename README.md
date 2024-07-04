@@ -74,15 +74,18 @@ For more analysis options and plots, see the example jupyter notebook
 
 ### Example Jupyter Notebook
 
-You can find an example Jupyter Notebook 
-[here](https://github.com/callumrollo/erddaplogs/blob/main/weblogs-parse-demo.ipynb). It performs the following steps:
+You can find an example Jupyter Notebook `weblogs-parse-demo.ipynb` in the `notebooks` directory. It performs the following steps:
 
-1. Read in apache and nginx logs, combine them into one consistent dataframe
+1. Reads in apache and nginx logs, combine them into one consistent dataframe
 2. Find the ips that made the greatest number of requests. Get their info from ip-api.com
 3. Remove suspected spam/bot requests
-4. Perform basic analysis to graph number of requests and users over time, most popular datasets/datatypes and geographic distribution of users
+4. Classify user data by identifying user agents, matching requets to dataset type etc.
+5. Perform basic analysis to graph number of requests and users over time, most popular datasets/datatypes and geographic distribution of users
+6. Anonymize user data and write them to file
 
 A rather out od date blog post explaining this notebook in more detail can be found at [https://callumrollo.com/weblogparse.html](https://callumrollo.com/weblogparse.html)
+
+A second notebook called `analyse_anonymized_usage` shows some examples of plotting the anonymized datasets made available on the VOTO ERDDAP
 
 ### A note on example data
 
