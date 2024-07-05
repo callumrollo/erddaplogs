@@ -170,9 +170,11 @@ def plot_bytes(df, days=3):
     daily_bytes = df.group_by_dynamic("datetime", every=f"{days}d").agg(
         pl.col("bytes_sent").sum()
     )
-    fig, ax = plt.subplots(figsize=(12, 8))
+    fig, ax = plt.subplots(figsize=(8, 6))
     ax.bar(daily_bytes["datetime"], daily_bytes["bytes_sent"] / 1024**3)
     ax.set(ylabel=f"GB sent per {days} days")
+    ax.grid(axis='y')
+    ax.tick_params(axis='x', labelrotation=45)
 
 
 def plot_for_single_ip(df_sub, fig_fn=None):

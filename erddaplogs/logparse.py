@@ -138,6 +138,13 @@ def _get_ip_info(df, ip_info_csv, download_new=True, num_new_ips=60, verbose=Fal
             }
         )
     if download_new:
+        if verbose:
+            unkown_ips = len(set(df['ip'].unique().to_list()).difference(set(df_ip['query'])))
+            if unkown_ips == 0:
+                print("No new ips to fetch!")
+                return df_ip
+            print(f"We have info on {len(df_ip)} addresses. Dataset contains {len(ip_counts)} address, of which "
+                  f"{unkown_ips} are not yet known")
         fetched_ips = 0
         for ip, count in ip_counts:
             if ip not in df_ip["query"]:
