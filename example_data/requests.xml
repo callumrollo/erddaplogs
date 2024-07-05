@@ -70,13 +70,13 @@
         </addAttributes>
     </dataVariable>
     <dataVariable>
-        <sourceName>bytes-sent</sourceName>
+        <sourceName>bytes_sent</sourceName>
         <destinationName>bytes_sent</destinationName>
         <dataType>int</dataType>
         <addAttributes>
             <att name="_FillValue" type="int">2147483647</att>
             <att name="ioos_category">Unknown</att>
-            <att name="long_name">Bytes-sent</att>
+            <att name="long_name">bytes_sent</att>
         </addAttributes>
     </dataVariable>
     <dataVariable>
