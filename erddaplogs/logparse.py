@@ -70,13 +70,14 @@ def _load_nginx_logs(nginx_logs_dir, wildcard_fname):
             "datetime": datetimestring,
             "url": url,
             "user_agent": useragent,
-            "status-code": status,
+            "status_code": status,
             "bytes_sent": bytessent,
             "referer": referer,
         }
     )
-    df = df.with_columns(pl.col("status-code").cast(pl.Int64))
-    df = df.with_columns(pl.col("bytes_sent").cast(pl.Int64))
+    
+    df = df.filter(pl.col("status_code") != "NaN").with_columns(pl.col("status_code").cast(pl.Int64))
+    df = df.filter(pl.col("bytes_sent") != "NaN").with_columns(pl.col("bytes_sent").cast(pl.Int64))
     # convert timestamp to datetime
     df = df.with_columns(
         pl.col("datetime")
@@ -500,7 +501,7 @@ class ErddapLogParser:
         self.aggregate_location()
         self.anonymized = self.df.select(
             pl.selectors.matches(
-                "^^ip$|^datetime$|^status-code$|^bytes_sent$|^erddap_request_type$|^dataset_type$|^dataset_id$|^file_type$|^url$|^user_agent$"
+                "^^ip$|^datetime$|^status_code$|^bytes_sent$|^erddap_request_type$|^dataset_type$|^dataset_id$|^file_type$|^url$|^user_agent$"
             )
         )
         self.anonymize_user_agent()
