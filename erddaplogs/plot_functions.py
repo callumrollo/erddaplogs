@@ -44,6 +44,7 @@ def plot_daily_requests(df, num_days=7):
 
     ax.set(xlim=(start, end), title=f"Requests per {num_days} days")
     plt.setp(ax.get_xticklabels(), rotation=45)
+    return ax
 
 
 def _plot_popularity_bar(ax, df, col_name, rows):
@@ -175,6 +176,7 @@ def plot_bytes(df, days=3):
     ax.set(ylabel=f"GB sent per {days} days")
     ax.grid(axis='y')
     ax.tick_params(axis='x', labelrotation=45)
+    return ax
 
 
 def plot_for_single_ip(df_sub, fig_fn=None):

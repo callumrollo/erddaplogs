@@ -9,3 +9,4 @@ pyarrow
 user_agents
 pre-commit
 pytest
+iso3166
