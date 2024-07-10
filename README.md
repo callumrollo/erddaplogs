@@ -19,6 +19,12 @@ Try it out on Binder [![Binder](https://mybinder.org/badge_logo.svg)](https://my
 pip install erddaplogs
 ```
 
+#### From conda-forge
+
+```sh
+conda install -c conda-forge erddaplogs
+```
+
 * #### From the repo, using pip
 
 ```sh
@@ -26,7 +32,7 @@ pip install erddaplogs
 git clone https://github.com/callumrollo/erddaplogs.git
 cd erddaplogs
 pip install -r requirements-dev.txt # install the dependencies
-pip install .
+pip install -e .
 ```
 
 ### Example usage
