@@ -56,7 +56,7 @@ def _load_nginx_logs(nginx_logs_dir, wildcard_fname):
                 datadict = data.groupdict()
                 ip.append(datadict["ipaddress"])
                 datetimestring.append(datadict["dateandtime"])
-                url.append(datadict["url"])
+                url.append(datadict["url"].strip())
                 bytessent.append(datadict["bytessent"])
                 referer.append(datadict["refferer"])
                 useragent.append(datadict["useragent"])
@@ -75,7 +75,7 @@ def _load_nginx_logs(nginx_logs_dir, wildcard_fname):
             "referer": referer,
         }
     )
-    
+
     df = df.filter(pl.col("status_code") != "NaN").with_columns(pl.col("status_code").cast(pl.Int64))
     df = df.filter(pl.col("bytes_sent") != "NaN").with_columns(pl.col("bytes_sent").cast(pl.Int64))
     # convert timestamp to datetime
@@ -199,11 +199,13 @@ def _parse_columns(df):
         base_url=df_parts[0].str.split(".", expand=True)[0].astype(str).values
     )
     url_parts = df["base_url"].to_pandas().str.split("/", expand=True)
-    url_parts["protocol"] = None
-    url_parts.loc[url_parts[2] == "tabledap", "protocol"] = "tabledap"
-    url_parts.loc[url_parts[2] == "griddap", "protocol"] = "griddap"
-    url_parts.loc[url_parts[2] == "files", "protocol"] = "files"
-    url_parts.loc[url_parts[2] == "info", "protocol"] = "info"
+    url_parts["protocol"] = ""
+    request_types = ['tabledap', 'subscriptions', 'info', 'files', 'legal', 'convert',
+                     'griddap', 'categorize', 'index', 'dataProviderForm', 'metadata',
+                     'information', 'status', 'search', 'slidesorter', 'rest',
+                     'wms', 'dataProviderForm', 'rss', 'outOfDateDatasets']
+    for protocol in request_types:
+        url_parts.loc[url_parts[2] == protocol, "protocol"] = protocol
     url_parts["dataset_id"] = url_parts[3]
     df = df.with_columns(erddap_request_type=url_parts["protocol"].astype(str).values)
     df = df.with_columns(dataset_id=url_parts["dataset_id"].astype(str).values)
@@ -230,6 +232,74 @@ def _parse_columns(df):
     df = df.with_columns(ip_subnet=ip_subnet.values)
     df = df.sort(by="datetime")
 
+    return df
+
+
+def _parse_language_data(df):
+    """
+    Parses the langauge data from requests urls. Adds two additional columns with the language codes as they
+    appear in the original urls and the named languages. Then, it removes the language section from the original
+    url so that it does not affect subsequent classification (e.g. of tabledap vs griddap vs files)
+    Parameters
+    ----------
+    df: polars.DataFrame
+        DataFrame with requests information
+
+    Returns
+    -------
+    polars.DataFrame
+        requests DataFrame with parsed language information
+    """
+    # langauge codes taken from the ERDDAP source code WEB-INF/classes/gov/noaa/pfel/erddap/util/TranslateMessages.java
+
+    language_codes = ["en", "bn", "zh-CN", "zh-TW", "cs", "da", "nl", "fi",
+                      "fr", "de", "el", "gu", "hi", "hu", "id", "ga", "it",
+                      "ja", "ko", "mr", "no", "pl", "pt",
+                      "pa", "ro", "ru", "es", "sw", "sv", "tl", "th",
+                      "tr", "uk", "ur", "vi"]
+
+    language_names = ["English", "Bengali", "Chinese-CN", "Chinese-TW", "Czech", "Danish", "Dutch", "Finnish",
+                      "French", "German", "Greek", "Gujarati", "Hindi", "Hungarian", "Indonesian", "Irish", "Italian",
+                      "Japanese", "Korean", "Marathi", "Norwegian", "Polish", "Portuguese",
+                      "Punjabi", "Romanian", "Russian", "Spanish", "Swahili", "Swedish", "Tagalog", "Thai",
+                      "Turkish", "Ukrainian", "Urdu", "Vietnamese"]
+    langauge_names_by_code = {code: name for code, name in zip(language_codes, language_names)}
+
+    df = df.with_columns(
+        pl.col("url")
+        .str.split_exact("/", 3, inclusive=True)
+        .struct.rename_fields(["blank", "root", "first", "rest"])
+        .alias("fields")
+    ).unnest("fields")
+    df = df.with_columns(
+        pl.col("url")
+        .str.split_exact("/", 3)
+        .struct.rename_fields(["blank_noslash", "root_noslash", "first_noslash", "rest_noslash"])
+        .alias("fields")
+    ).unnest("fields")
+
+    potential_langauge_col = df['first_noslash'].to_numpy()
+    corrected_language_col = df['first'].to_numpy()
+    languages_present = set(df['first_noslash'].unique().to_numpy()).intersection(language_codes)
+    language_col = potential_langauge_col.copy()
+    language_col[:] = "English"
+    language_code_col = potential_langauge_col.copy()
+    language_code_col[:] = "en"
+
+    for language_code in languages_present:
+        corrected_language_col[potential_langauge_col == language_code] = ""
+        language_code_col[potential_langauge_col == language_code] = language_code
+        language_col[potential_langauge_col == language_code] = langauge_names_by_code[language_code]
+
+    df = df.with_columns(language_code=language_code_col)
+    df = df.with_columns(language=language_col)
+    df = df.with_columns(first=corrected_language_col)
+    df = df.with_columns(pl.concat_str(["blank", "root", "first", "rest"]).alias('reconstruct'))
+
+    if "rest" in df.columns:
+        df = df.drop(["blank", "root", "first", "rest"])
+    if "rest_noslash" in df.columns:
+        df = df.drop(["blank_noslash", "root_noslash", "first_noslash", "rest_noslash"])
     return df
 
 
@@ -377,18 +447,18 @@ class ErddapLogParser:
 
     @_print_filter_stats
     def filter_spam(
-        self,
-        spam_strings=(
-            ".env",
-            "env.",
-            ".php",
-            ".git",
-            "robots.txt",
-            "phpinfo",
-            "/config",
-            "aws",
-            ".xml",
-        ),
+            self,
+            spam_strings=(
+                    ".env",
+                    "env.",
+                    ".php",
+                    ".git",
+                    "robots.txt",
+                    "phpinfo",
+                    "/config",
+                    "aws",
+                    ".xml",
+            ),
     ):
         """
         Filter out requests from non-visitors.
@@ -416,7 +486,7 @@ class ErddapLogParser:
 
     @_print_filter_stats
     def filter_common_strings(
-        self, strings=("/version", "favicon.ico", ".js", ".css", "/erddap/images")
+            self, strings=("/version", "favicon.ico", ".js", ".css", "/erddap/images")
     ):
         """Filter out non-data requests - requests for version, images, etc"""
         for string in strings:
@@ -432,16 +502,31 @@ class ErddapLogParser:
             if "datasetID" in child.keys():
                 dataset_id.append(child.get("datasetID"))
                 dataset_type.append(child.get("type"))
+        dataset_id.append("allDatasets")
+        dataset_type.append("allDatasets")
         self.df_xml = pl.DataFrame(
             {"dataset_id": dataset_id, "dataset_type": dataset_type}
         )
 
     def parse_columns(self):
+        self.df = _parse_language_data(self.df)
         self.df = _parse_columns(self.df)
         if not self.df_xml.is_empty():
             self.df = self.df.join(
                 self.df_xml, left_on="dataset_id", right_on="dataset_id", how="left"
             ).sort("datetime")
+            self.df = self.df.with_columns(
+                dataset_id=pl.when(pl.col("dataset_type").is_null())
+                .then(None)
+                .otherwise(pl.col("dataset_id"))
+            )
+
+        self.df = self.df.with_columns(
+            pl.when(pl.col(pl.String).str.len_chars() == 0)
+            .then(None)
+            .otherwise(pl.col(pl.String))
+            .name.keep()
+        )
 
     def aggregate_location(self):
         """Generates a dataframe that contains query counts by status code and location."""
