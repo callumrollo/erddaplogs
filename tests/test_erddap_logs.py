@@ -1,6 +1,14 @@
 import polars as pl
 from erddaplogs.logparse import ErddapLogParser
 import erddaplogs.plot_functions as plot_functions
+import os
+from pathlib import Path
+
+cwd = Path(os.getcwd())
+existing_output_files = list(cwd.glob("*anonymized_requests.csv")) + list(cwd.glob("*aggregated_locations.csv"))
+if len(existing_output_files) > 1:
+    for old_file in existing_output_files:
+        os.unlink(str(old_file))
 
 
 def test_parser():
@@ -33,8 +41,8 @@ def test_anonymized_data():
     assert "email=" not in "".join(parser.anonymized['url'].to_list())
     for blocked_col in ["user_agent", "lat", "lon", "org", "zip", "city"]:
         assert blocked_col not in parser.anonymized.columns
-    assert parser.anonymized['ip'].dtype == pl.Int32
-    assert parser.location.columns == ['countryCode', 'regionName', 'city', 'total_requests']
+    assert parser.anonymized['ip_id'].dtype == pl.String
+    assert not set(parser.location.columns).difference(['month', 'countryCode', 'regionName', 'city', 'total_requests'])
 
 
 def test_plots():
