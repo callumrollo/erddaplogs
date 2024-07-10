@@ -28,13 +28,12 @@
         <att name="title">requests</att>
     </addAttributes>
     <dataVariable>
-        <sourceName>ip</sourceName>
-        <destinationName>ip</destinationName>
-        <dataType>int</dataType>
+        <sourceName>ip_id</sourceName>
+        <destinationName>ip_id</destinationName>
+        <dataType>String</dataType>
         <addAttributes>
-            <att name="_FillValue" type="int">2147483647</att>
-            <att name="ioos_category">Unknown</att>
-            <att name="long_name">Ip</att>
+            <att name="ioos_category">Identifier</att>
+            <att name="long_name">Ip Id</att>
         </addAttributes>
     </dataVariable>
     <dataVariable>

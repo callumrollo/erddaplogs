@@ -11,8 +11,9 @@
     <columnSeparator>,</columnSeparator>
     <columnNamesRow>1</columnNamesRow>
     <firstDataRow>2</firstDataRow>
-    <sortedColumnSourceName></sortedColumnSourceName>
-    <sortFilesBySourceNames></sortFilesBySourceNames>
+    <sortedColumnSourceName>month</sortedColumnSourceName>
+    <sortFilesBySourceNames>month</sortFilesBySourceNames>
+
     <fileTableInMemory>false</fileTableInMemory>
     <addAttributes>
         <att name="cdm_data_type">Other</att>
@@ -63,5 +64,19 @@
             <att name="long_name">total_requests</att>
         </addAttributes>
     </dataVariable>
+    <dataVariable>
+        <sourceName>month</sourceName>
+        <destinationName>time</destinationName>
+        <dataType>String</dataType>
+        <addAttributes>
+            <att name="ioos_category">Time</att>
+            <att name="long_name">Month</att>
+            <att name="source_name">month</att>
+            <att name="standard_name">time</att>
+            <att name="time_precision">1970-01</att>
+            <att name="units">yyyy-MM</att>
+        </addAttributes>
+    </dataVariable>
+
 </dataset>
 
