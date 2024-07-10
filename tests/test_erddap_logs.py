@@ -19,8 +19,11 @@ def test_parser():
     parser.filter_organisations()
     parser.parse_datasets_xml("example_data/datasets.xml")
     parser.parse_columns()
-    assert len(parser.df['dataset_type'].unique()) > 2
-    parser.df.write_parquet("example_data/df_example.pqt")
+    df = parser.df
+    assert len(df['dataset_type'].unique()) > 2
+    assert df['erddap_request_type'].is_null().sum() / df.shape[0] < 0.01
+    assert 0.2 < df['dataset_id'].is_null().sum() / df.shape[0] < 0.3
+    df.write_parquet("example_data/df_example.pqt")
 
 
 def test_anonymized_data():
