@@ -626,8 +626,8 @@ class ErddapLogParser:
             old_locs = pl.read_csv(latest_loc_file, try_parse_dates=True)
             old_locs = old_locs.with_columns(
                 old_locs.select(
-                    pl.concat_str([pl.col("regionName"), pl.col("city")]).alias(
-                        "region_city"
+                    pl.concat_str([pl.col("month"), pl.col("regionName"), pl.col("city")]).alias(
+                        "month_region_city"
                     )
                 )
             )
@@ -663,6 +663,7 @@ class ErddapLogParser:
             existing_loc_files.sort()
             for old_file in existing_loc_files[:-1]:
                 os.unlink(str(old_file))
+
     def undo_filter(self):
         """Reset to unfiltered DataFrame."""
         if self.verbose:
