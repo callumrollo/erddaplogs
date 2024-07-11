@@ -202,10 +202,14 @@ def _parse_columns(df):
     url_parts["protocol"] = ""
     request_types = ['tabledap', 'subscriptions', 'info', 'files', 'legal', 'convert',
                      'griddap', 'categorize', 'index', 'dataProviderForm', 'metadata',
-                     'information', 'status', 'search', 'slidesorter', 'rest',
-                     'wms', 'dataProviderForm', 'rss', 'outOfDateDatasets']
+                     'information', 'status', 'search', 'slidesorter', 'rest', 'sos', 'wcs'
+                     'wms', 'dataProviderForm', 'rss', 'outOfDateDatasets', 'sitemap',
+                     'download', 'images', 'public', 'opensearch1.1', 'logout', 'setDatasetFlag']
     for protocol in request_types:
         url_parts.loc[url_parts[2] == protocol, "protocol"] = protocol
+    url_parts.loc[url_parts[2].str[:5] == 'login', "protocol"] = 'login'
+    url_parts.loc[url_parts[2].str[:7] == 'version', "protocol"] = 'version'
+    url_parts.loc[url_parts[2].str[:16] == 'dataProviderForm', "protocol"] = 'dataProviderForm'
     url_parts["dataset_id"] = url_parts[3]
     df = df.with_columns(erddap_request_type=url_parts["protocol"].astype(str).values)
     df = df.with_columns(dataset_id=url_parts["dataset_id"].astype(str).values)
