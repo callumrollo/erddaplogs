@@ -380,7 +380,7 @@ class ErddapLogParser:
             ],
             how="vertical",
         )
-        df_combi = df_combi.sort("datetime").unique()
+        df_combi = df_combi.unique().sort("datetime")
         self.df = df_combi
         self._update_original_total_requests()
 
@@ -396,7 +396,7 @@ class ErddapLogParser:
             ],
             how="vertical",
         )
-        df_combi = df_combi.sort("datetime").unique()
+        df_combi = df_combi.unique().sort("datetime")
         self.df = df_combi
         self._update_original_total_requests()
 
@@ -546,7 +546,7 @@ class ErddapLogParser:
             .len()
             .fill_null("unknown")
             .rename({"len": "total_requests"})
-        ).cast({"total_requests": pl.Int64})
+        ).cast({"total_requests": pl.Int64})[self.temporal_resolution, "countryCode", "regionName", "city", "total_requests"]
 
     def anonymize_user_agent(self):
         """Modifies the anonymized dataframe to have browser, device, and os names instead of full user agent."""
@@ -629,16 +629,18 @@ class ErddapLogParser:
         if len(previous_anon_files) != 0 and not export_all:
             previous_anon_files.sort()
             most_recent_file = previous_anon_files[-1]
-            df_last = pl.read_csv(most_recent_file, try_parse_dates=True)
+            df_last = pl.read_csv(most_recent_file)
             if not df_last.is_empty():
-                last_request = df_last["datetime"].max()
-                self.df = self.df.filter(pl.col("datetime") > last_request)
+                last_request = df_last[self.temporal_resolution].max()
+                self.df = self.df.filter(pl.col(self.temporal_resolution) >= last_request)
+
         if not self.df.is_empty():
             self.anonymize_requests()
+            self.anonymized = self.anonymized.sort('datetime')
             if not self.anonymized.is_empty():
-                dates = self.anonymized[time_unit].unique()
+                dates = self.anonymized[time_unit].unique().sort()
                 for date in dates:
-                    df_sub = self.anonymized.filter(pl.col(time_unit) == date)
+                    df_sub = self.anonymized.filter(pl.col(time_unit) == date).sort('datetime')
                     fn = output_dir / f"{str(date)}_anonymized_requests.csv"
                     df_sub.write_csv(fn)
                     if self.verbose:
@@ -646,41 +648,43 @@ class ErddapLogParser:
         existing_loc_files = list(output_dir.glob("*aggregated_locations.csv"))
         if len(existing_loc_files) != 0:
             old_locs = pl.read_csv(f"{str(output_dir)}/*aggregated_locations.csv")
-            old_locs = old_locs.with_columns(
-                old_locs.select(
-                    pl.concat_str([pl.col(time_unit), pl.col("regionName"), pl.col("city")]).alias(
-                        "month_region_city"
-                    )
-                )
-            )
-            if not self.location.is_empty():
-                new_locs = self.location.with_columns(
-                    self.location.select(
+            old_locs = old_locs.filter(pl.col(self.temporal_resolution) < self.df[self.temporal_resolution].min())
+            if not old_locs.is_empty():
+                old_locs = old_locs.with_columns(
+                    old_locs.select(
                         pl.concat_str([pl.col(time_unit), pl.col("regionName"), pl.col("city")]).alias(
                             "month_region_city"
                         )
                     )
                 )
-                df_vertical_concat = pl.concat(
-                    [
-                        old_locs,
-                        new_locs,
-                    ],
-                    how="vertical",
-                )
-                totals = (
-                    df_vertical_concat.group_by("month_region_city").sum().sort("month_region_city")
-                )
-                meta = (
-                    df_vertical_concat.group_by("month_region_city").first().sort("month_region_city")
-                )
-                meta = meta.with_columns(total_requests=totals["total_requests"])
-                self.location = meta[
-                    [time_unit, "countryCode", "regionName", "city", "total_requests"]
-                ]
+                if not self.location.is_empty():
+                    new_locs = self.location.with_columns(
+                        self.location.select(
+                            pl.concat_str([pl.col(time_unit), pl.col("regionName"), pl.col("city")]).alias(
+                                "month_region_city"
+                            )
+                        )
+                    )
+                    df_vertical_concat = pl.concat(
+                        [
+                            old_locs,
+                            new_locs,
+                        ],
+                        how="vertical",
+                    )
+                    totals = (
+                        df_vertical_concat.group_by("month_region_city").sum().sort("month_region_city")
+                    )
+                    meta = (
+                        df_vertical_concat.group_by("month_region_city").first().sort("month_region_city")
+                    )
+                    meta = meta.with_columns(total_requests=totals["total_requests"])
+                    self.location = meta[
+                        [time_unit, "countryCode", "regionName", "city", "total_requests"]
+                    ]
         if not self.location.is_empty():
-            df = self.location
-            dates = df[time_unit].unique()
+            df = self.location.sort(time_unit)
+            dates = df[time_unit].unique().sort()
 
             for date in dates:
                 df_sub = df.filter(pl.col(time_unit) == date)

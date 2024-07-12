@@ -21,10 +21,8 @@ for sub_name in ["sub_0", "sub_1"]:
 for infile in Path("example_data/nginx_example_logs/").glob("*access*"):
     fn = infile.name
     if int(fn[-1]) >= 5:
-        sub = "sub_0"
-    else:
-        sub = "sub_1"
-    shutil.copy(f"example_data/nginx_example_logs/{fn}", f"example_data/nginx_example_logs/{sub}/{fn}")
+        shutil.copy(f"example_data/nginx_example_logs/{fn}", f"example_data/nginx_example_logs/sub_0/{fn}")
+    shutil.copy(f"example_data/nginx_example_logs/{fn}", f"example_data/nginx_example_logs/sub_1/{fn}")
 
 
 def test_parser():
@@ -52,21 +50,38 @@ def test_parser():
 
 
 def test_sequential_process():
-    out = Path("example_output")
+    out = Path("example_output_days")
     remove_processed_files(tgt=out)
     for sub_dir in ["sub_0", "sub_1"]:
         parser = ErddapLogParser()
-        parser.temporal_resolution='day'
+        parser.temporal_resolution = 'day'
         nginx_logs_dir = f"example_data/nginx_example_logs/{sub_dir}"
         parser.load_nginx_logs(nginx_logs_dir)
-        parser.subset_df(1000)
         parser.get_ip_info(num_ips=3)
         parser.parse_datasets_xml("example_data/datasets.xml")
         parser.parse_columns()
         parser.export_data(output_dir=out)
 
     assert len(list(out.glob("*aggregated_locations.csv"))) == 9
-    assert len(list(out.glob("*anonymized_requests.csv"))) == 2
+    assert len(list(out.glob("*anonymized_requests.csv"))) == 9
+    
+    out = Path("example_output_months")
+    remove_processed_files(tgt=out)
+    for sub_dir in ["sub_0", "sub_1"]:
+        parser = ErddapLogParser()
+        nginx_logs_dir = f"example_data/nginx_example_logs/{sub_dir}"
+        parser.load_nginx_logs(nginx_logs_dir)
+        parser.get_ip_info(num_ips=3)
+        parser.parse_datasets_xml("example_data/datasets.xml")
+        parser.parse_columns()
+        parser.export_data(output_dir=out)
+
+    df_days = pl.read_csv("example_output_days/*anonymized_requests.csv")
+    df_month = pl.read_csv("example_output_months/*anonymized_requests.csv")
+    assert df_days.shape == df_month.shape
+    df_days_loc = pl.read_csv("example_output_days/*aggregated_locations.csv")
+    df_month_loc = pl.read_csv("example_output_months/*aggregated_locations.csv")
+    assert df_days_loc['total_requests'].sum() == df_month_loc['total_requests'].sum()
 
 
 def test_anonymized_data():
