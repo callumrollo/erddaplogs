@@ -52,6 +52,7 @@ from erddaplogs.logparse import ErddapLogParser
 parser = ErddapLogParser()
 parser.load_nginx_logs("example_data/nginx_example_logs/") # replace with the path to your logs
 parser.parse_datasets_xml("example_data/datasets.xml") # replace with the path to your xml, or remove this line
+parser.temporal_resolution = 'day' # can be any one of 'day', 'month' or 'year'. Defaults to 'month'
 parser.filter_non_erddap()
 parser.filter_spam()
 parser.filter_locales()
@@ -63,13 +64,15 @@ parser.parse_columns()
 parser.export_data(output_dir=".") # Put the path to the output dir here. Preferably somewhere your ERDDAP can read
 ```
 
-This will read nginx logs from the user specified directory and write two files `<timestamp>_anonymized_requests.csv` and `<timestamp>_aggregated_locations.csv` with anonymized requests and aggregated location data respectively. 
+This will read nginx logs from the user specified directory and write files `<timestamp>_anonymized_requests.csv` and `<timestamp>_aggregated_locations.csv` with anonymized requests and aggregated location data respectively. 
 
-ErddapLogParser can be run on a static directory of logs or as a cron job e.g. once per day. If run repeatedly, it will create a new file for `anonymized_requests` with only anonymized requests that have been received since the script was last run. The `aggregated_locations` file will be updated with the new request locations, only one file with cumulative location totals is retained. 
+`timestamp` will be YYYY YYYY-MM or YYYY-MM-DD depending on whether the user has set `temporal_resolution` to year, month or day. **NB** you must retain logs for at least as long as your temporal resolution! If you only retain logs for 3 days, but aggregate data by month, some data will be lost.
+
+ErddapLogParser can be run on a static directory of logs or as a cron job e.g. once per day. If run repeatedly, it will create a new files for `anonymized_requests` and `aggregated_locations` using only requests that have been received since the last timestamp.
 
 To re-analyze all the input requests, first delete the output files in `output_dir` then re-run.
 
-Optionally, the resulting anonymized data can be shared on your ERDDAP in two datasets `requests` and `locations`. To do this, add the contents of the example xml files `requests.xml` and `locations.xml` from the `example_data` directory to your `datasets.xml`. Make sure to update the entries for **fileDir** and **institution**. The other fields can remain as-is.
+Optionally, the resulting anonymized data can be shared on your ERDDAP in two datasets `requests` and `locations`. To do this, add the contents of the example xml files `requests.xml` and `locations.xml` from the `example_data` directory to your `datasets.xml`. Make sure to update the entries for **fileDir**, **institution** and date variable, which may be month, day or year. The other fields can remain as-is.
 
 You can see what the resulting stats look like on the VOTO ERDDAP server:
 
