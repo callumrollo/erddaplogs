@@ -1,3 +1,4 @@
+import datetime
 import os
 from copy import copy
 from pathlib import Path
@@ -8,7 +9,9 @@ import requests
 import re
 import gzip
 import xml.etree.ElementTree as ET
-
+_date_format_dict = {'day': '%Y-%m-%d',
+                     'month': '%Y-%m',
+                     'year': '%Y', }
 
 def _load_nginx_logs(nginx_logs_dir, wildcard_fname):
     """
@@ -337,6 +340,7 @@ class ErddapLogParser:
         self.verbose = False
         self.original_total_requests = 0
         self.filter_name = None
+        self.temporal_resolution = 'month'
 
     def _update_original_total_requests(self):
         """Update the number of requests in the DataFrame."""
@@ -376,7 +380,7 @@ class ErddapLogParser:
             ],
             how="vertical",
         )
-        df_combi = df_combi.sort("datetime").unique()
+        df_combi = df_combi.unique().sort("datetime")
         self.df = df_combi
         self._update_original_total_requests()
 
@@ -392,7 +396,7 @@ class ErddapLogParser:
             ],
             how="vertical",
         )
-        df_combi = df_combi.sort("datetime").unique()
+        df_combi = df_combi.unique().sort("datetime")
         self.df = df_combi
         self._update_original_total_requests()
 
@@ -536,12 +540,13 @@ class ErddapLogParser:
 
     def aggregate_location(self):
         """Generates a dataframe that contains query counts by status code and location."""
+        df = self.df
         self.location = (
-            self.df.group_by(["countryCode", "regionName", "city"])
+            df.group_by(["countryCode", "regionName", "city", self.temporal_resolution])
             .len()
             .fill_null("unknown")
             .rename({"len": "total_requests"})
-        ).cast({"total_requests": pl.Int64}).with_columns(pl.lit(self.df["datetime"].max().strftime("%Y-%m")).alias('month'))
+        ).cast({"total_requests": pl.Int64})[self.temporal_resolution, "countryCode", "regionName", "city", "total_requests"]
 
     def anonymize_user_agent(self):
         """Modifies the anonymized dataframe to have browser, device, and os names instead of full user agent."""
@@ -562,22 +567,31 @@ class ErddapLogParser:
         )
         self.anonymized = self.anonymized.drop("user_agent")
 
-    def anonymize_ip(self, prepend):
+    def anonymize_ip(self):
         """Replaces the ip address with a unique number identifier."""
+        df = self.anonymized
+        df = df.with_columns((pl.col(self.temporal_resolution) + pl.col("ip")).alias('temporal_ip'))
         unique_df = (
-            pl.DataFrame({"ip": self.anonymized.get_column("ip").unique()})
+            pl.DataFrame({"temporal_ip": df.get_column("temporal_ip").unique()})
             .with_row_index()
-            .with_columns(prepend + pl.col("index").cast(str))
+            .with_columns(pl.col("index").cast(str))
         )
-        self.anonymized = self.anonymized.with_columns(
-            pl.col("ip").map_elements(
-                lambda ip: unique_df.row(by_predicate=(pl.col("ip") == ip), named=True)[
-                    "literal"
+        date_length = len(df[self.temporal_resolution][0])
+        unique_df = unique_df.with_columns(
+            (pl.col('temporal_ip').str.slice(0, date_length) + '_' + pl.col("index")).alias("temporal_ip_id"),
+            (pl.col('temporal_ip').str.slice(date_length)).alias("ip")
+
+        )
+        df = df.with_columns(
+            pl.col("temporal_ip").map_elements(
+                lambda temporal_ip: unique_df.row(by_predicate=(pl.col("temporal_ip") == temporal_ip), named=True)[
+                    "temporal_ip_id"
                 ],
                 return_dtype=pl.String,
             )
         )
-        self.anonymized = self.anonymized.rename({"ip": "ip_id"})
+        df = df.drop('ip').rename({"temporal_ip": "ip_id"})
+        self.anonymized = df
 
     def anonymize_query(self):
         """Remove email= and the address from queries."""
@@ -588,85 +602,96 @@ class ErddapLogParser:
             )
         )
 
-    def anonymize_requests(self, prepend=""):
+    def anonymize_requests(self):
         """Creates tables that are safe for sharing, including a query by location table and an anonymized table."""
         self.aggregate_location()
         self.anonymized = self.df.select(
             pl.selectors.matches(
-                "^^ip$|^datetime$|^status_code$|^bytes_sent$|^erddap_request_type$|^dataset_type$|^dataset_id$|^file_type$|^url$|^user_agent$"
+                f"^^ip$|^datetime$|^status_code$|^bytes_sent$|^erddap_request_type$|^dataset_type$|^dataset_id$|^file_type$|^url$|^user_agent$|^{self.temporal_resolution}$"
             )
         )
         self.anonymize_user_agent()
-        self.anonymize_ip(prepend)
+        self.anonymize_ip()
         self.anonymize_query()
 
     def export_data(self, output_dir=Path(os.getcwd()), export_all=False):
         """Exports the anonymized data to csv files that can be shared."""
+        if self.temporal_resolution not in _date_format_dict.keys(): 
+            print(f"self.temporal resolution must be one of {_date_format_dict.keys()}. Can not export data")
+            return
+        self.df = self.df.with_columns(self.df["datetime"].dt.strftime(_date_format_dict[self.temporal_resolution])
+                                       .alias(self.temporal_resolution))
         output_dir = Path(output_dir)
+        time_unit = self.temporal_resolution
         if not output_dir.exists():
             output_dir.mkdir(parents=True)
-        timestamp = self.df["datetime"].max().strftime("%Y%m%d_%H%M%S_")
-        df_full = self.df.clone()
         previous_anon_files = list(output_dir.glob("*anonymized_requests.csv"))
         if len(previous_anon_files) != 0 and not export_all:
             previous_anon_files.sort()
             most_recent_file = previous_anon_files[-1]
-            df_last = pl.read_csv(most_recent_file, try_parse_dates=True)
+            df_last = pl.read_csv(most_recent_file)
             if not df_last.is_empty():
-                last_request = df_last["datetime"].max()
-                self.df = self.df.filter(pl.col("datetime") > last_request)
+                last_request = df_last[self.temporal_resolution].max()
+                self.df = self.df.filter(pl.col(self.temporal_resolution) >= last_request)
+
         if not self.df.is_empty():
-            self.anonymize_requests(prepend=timestamp)
+            self.anonymize_requests()
+            self.anonymized = self.anonymized.sort('datetime')
             if not self.anonymized.is_empty():
-                self.anonymized.write_csv(
-                    output_dir / f"{timestamp}anonymized_requests.csv"
-                )
-        if len(previous_anon_files) != 0:
-            self.df = df_full
+                dates = self.anonymized[time_unit].unique().sort()
+                for date in dates:
+                    df_sub = self.anonymized.filter(pl.col(time_unit) == date).sort('datetime')
+                    fn = output_dir / f"{str(date)}_anonymized_requests.csv"
+                    df_sub.write_csv(fn)
+                    if self.verbose:
+                        print(f"write file {fn}")
         existing_loc_files = list(output_dir.glob("*aggregated_locations.csv"))
         if len(existing_loc_files) != 0:
-            existing_loc_files.sort()
-            latest_loc_file = existing_loc_files[-1]
-            old_locs = pl.read_csv(latest_loc_file, try_parse_dates=True)
-            old_locs = old_locs.with_columns(
-                old_locs.select(
-                    pl.concat_str([pl.col("month"), pl.col("regionName"), pl.col("city")]).alias(
-                        "month_region_city"
-                    )
-                )
-            )
-            if not self.location.is_empty():
-                new_locs = self.location.with_columns(
-                    self.location.select(
-                        pl.concat_str([pl.col("month"), pl.col("regionName"), pl.col("city")]).alias(
+            old_locs = pl.read_csv(f"{str(output_dir)}/*aggregated_locations.csv")
+            old_locs = old_locs.filter(pl.col(self.temporal_resolution) < self.df[self.temporal_resolution].min())
+            if not old_locs.is_empty():
+                old_locs = old_locs.with_columns(
+                    old_locs.select(
+                        pl.concat_str([pl.col(time_unit), pl.col("regionName"), pl.col("city")]).alias(
                             "month_region_city"
                         )
                     )
                 )
-                df_vertical_concat = pl.concat(
-                    [
-                        old_locs,
-                        new_locs,
-                    ],
-                    how="vertical",
-                )
-                totals = (
-                    df_vertical_concat.group_by("month_region_city").sum().sort("month_region_city")
-                )
-                meta = (
-                    df_vertical_concat.group_by("month_region_city").first().sort("month_region_city")
-                )
-                meta = meta.with_columns(total_requests=totals["total_requests"])
-                self.location = meta[
-                    ["month", "countryCode", "regionName", "city", "total_requests"]
-                ]
+                if not self.location.is_empty():
+                    new_locs = self.location.with_columns(
+                        self.location.select(
+                            pl.concat_str([pl.col(time_unit), pl.col("regionName"), pl.col("city")]).alias(
+                                "month_region_city"
+                            )
+                        )
+                    )
+                    df_vertical_concat = pl.concat(
+                        [
+                            old_locs,
+                            new_locs,
+                        ],
+                        how="vertical",
+                    )
+                    totals = (
+                        df_vertical_concat.group_by("month_region_city").sum().sort("month_region_city")
+                    )
+                    meta = (
+                        df_vertical_concat.group_by("month_region_city").first().sort("month_region_city")
+                    )
+                    meta = meta.with_columns(total_requests=totals["total_requests"])
+                    self.location = meta[
+                        [time_unit, "countryCode", "regionName", "city", "total_requests"]
+                    ]
         if not self.location.is_empty():
-            self.location.write_csv(output_dir / f"{timestamp}aggregated_locations.csv")
-        existing_loc_files = list(output_dir.glob("*aggregated_locations.csv"))
-        if len(existing_loc_files) > 1:
-            existing_loc_files.sort()
-            for old_file in existing_loc_files[:-1]:
-                os.unlink(str(old_file))
+            df = self.location.sort(time_unit)
+            dates = df[time_unit].unique().sort()
+
+            for date in dates:
+                df_sub = df.filter(pl.col(time_unit) == date)
+                fn = output_dir / f"{str(date)}_aggregated_locations.csv"
+                df_sub.write_csv(fn)
+                if self.verbose:
+                    print(f"write file {fn}")
 
     def undo_filter(self):
         """Reset to unfiltered DataFrame."""
