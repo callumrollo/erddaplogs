@@ -541,10 +541,8 @@ class ErddapLogParser:
     def aggregate_location(self):
         """Generates a dataframe that contains query counts by status code and location."""
         df = self.df
-        time_unit = self.temporal_resolution
-        df = df.with_columns(df["datetime"].dt.strftime(_date_format_dict[time_unit]).alias(time_unit))
         self.location = (
-            df.group_by(["countryCode", "regionName", "city", time_unit])
+            df.group_by(["countryCode", "regionName", "city", self.temporal_resolution])
             .len()
             .fill_null("unknown")
             .rename({"len": "total_requests"})
@@ -569,22 +567,31 @@ class ErddapLogParser:
         )
         self.anonymized = self.anonymized.drop("user_agent")
 
-    def anonymize_ip(self, prepend):
+    def anonymize_ip(self):
         """Replaces the ip address with a unique number identifier."""
+        df = self.anonymized
+        df = df.with_columns((pl.col(self.temporal_resolution) + pl.col("ip")).alias('temporal_ip'))
         unique_df = (
-            pl.DataFrame({"ip": self.anonymized.get_column("ip").unique()})
+            pl.DataFrame({"temporal_ip": df.get_column("temporal_ip").unique()})
             .with_row_index()
-            .with_columns(prepend + pl.col("index").cast(str))
+            .with_columns(pl.col("index").cast(str))
         )
-        self.anonymized = self.anonymized.with_columns(
-            pl.col("ip").map_elements(
-                lambda ip: unique_df.row(by_predicate=(pl.col("ip") == ip), named=True)[
-                    "literal"
+        date_length = len(df[self.temporal_resolution][0])
+        unique_df = unique_df.with_columns(
+            (pl.col('temporal_ip').str.slice(0, date_length) + '_' + pl.col("index")).alias("temporal_ip_id"),
+            (pl.col('temporal_ip').str.slice(date_length)).alias("ip")
+
+        )
+        df = df.with_columns(
+            pl.col("temporal_ip").map_elements(
+                lambda temporal_ip: unique_df.row(by_predicate=(pl.col("temporal_ip") == temporal_ip), named=True)[
+                    "temporal_ip_id"
                 ],
                 return_dtype=pl.String,
             )
         )
-        self.anonymized = self.anonymized.rename({"ip": "ip_id"})
+        df = df.drop('ip').rename({"temporal_ip": "ip_id"})
+        self.anonymized = df
 
     def anonymize_query(self):
         """Remove email= and the address from queries."""
@@ -595,26 +602,29 @@ class ErddapLogParser:
             )
         )
 
-    def anonymize_requests(self, prepend=""):
+    def anonymize_requests(self):
         """Creates tables that are safe for sharing, including a query by location table and an anonymized table."""
         self.aggregate_location()
         self.anonymized = self.df.select(
             pl.selectors.matches(
-                "^^ip$|^datetime$|^status_code$|^bytes_sent$|^erddap_request_type$|^dataset_type$|^dataset_id$|^file_type$|^url$|^user_agent$"
+                f"^^ip$|^datetime$|^status_code$|^bytes_sent$|^erddap_request_type$|^dataset_type$|^dataset_id$|^file_type$|^url$|^user_agent$|^{self.temporal_resolution}$"
             )
         )
         self.anonymize_user_agent()
-        self.anonymize_ip(prepend)
+        self.anonymize_ip()
         self.anonymize_query()
 
     def export_data(self, output_dir=Path(os.getcwd()), export_all=False):
         """Exports the anonymized data to csv files that can be shared."""
+        if self.temporal_resolution not in _date_format_dict.keys(): 
+            print(f"self.temporal resolution must be one of {_date_format_dict.keys()}. Can not export data")
+            return
+        self.df = self.df.with_columns(self.df["datetime"].dt.strftime(_date_format_dict[self.temporal_resolution])
+                                       .alias(self.temporal_resolution))
         output_dir = Path(output_dir)
         time_unit = self.temporal_resolution
         if not output_dir.exists():
             output_dir.mkdir(parents=True)
-        timestamp = self.df["datetime"].max().strftime("%Y%m%d_%H%M%S_")
-        df_full = self.df.clone()
         previous_anon_files = list(output_dir.glob("*anonymized_requests.csv"))
         if len(previous_anon_files) != 0 and not export_all:
             previous_anon_files.sort()
@@ -624,15 +634,15 @@ class ErddapLogParser:
                 last_request = df_last["datetime"].max()
                 self.df = self.df.filter(pl.col("datetime") > last_request)
         if not self.df.is_empty():
-            self.anonymize_requests(prepend=timestamp)
+            self.anonymize_requests()
             if not self.anonymized.is_empty():
-                self.anonymized.write_csv(
-                    output_dir / f"{timestamp}anonymized_requests.csv"
-                )
-                if self.verbose:
-                    print(f"write file {output_dir}/{timestamp}anonymized_requests.csv")
-        if len(previous_anon_files) != 0:
-            self.df = df_full
+                dates = self.anonymized[time_unit].unique()
+                for date in dates:
+                    df_sub = self.anonymized.filter(pl.col(time_unit) == date)
+                    fn = output_dir / f"{str(date)}_anonymized_requests.csv"
+                    df_sub.write_csv(fn)
+                    if self.verbose:
+                        print(f"write file {fn}")
         existing_loc_files = list(output_dir.glob("*aggregated_locations.csv"))
         if len(existing_loc_files) != 0:
             old_locs = pl.read_csv(f"{str(output_dir)}/*aggregated_locations.csv")
