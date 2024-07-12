@@ -1,3 +1,4 @@
+import datetime
 import os
 from copy import copy
 from pathlib import Path
@@ -8,7 +9,9 @@ import requests
 import re
 import gzip
 import xml.etree.ElementTree as ET
-
+_date_format_dict = {'day': '%Y-%m-%d',
+                     'month': '%Y-%m',
+                     'year': '%Y', }
 
 def _load_nginx_logs(nginx_logs_dir, wildcard_fname):
     """
@@ -337,6 +340,7 @@ class ErddapLogParser:
         self.verbose = False
         self.original_total_requests = 0
         self.filter_name = None
+        self.temporal_resolution = 'month'
 
     def _update_original_total_requests(self):
         """Update the number of requests in the DataFrame."""
@@ -536,12 +540,15 @@ class ErddapLogParser:
 
     def aggregate_location(self):
         """Generates a dataframe that contains query counts by status code and location."""
+        df = self.df
+        time_unit = self.temporal_resolution
+        df = df.with_columns(df["datetime"].dt.strftime(_date_format_dict[time_unit]).alias(time_unit))
         self.location = (
-            self.df.group_by(["countryCode", "regionName", "city"])
+            df.group_by(["countryCode", "regionName", "city", time_unit])
             .len()
             .fill_null("unknown")
             .rename({"len": "total_requests"})
-        ).cast({"total_requests": pl.Int64}).with_columns(pl.lit(self.df["datetime"].max().strftime("%Y-%m")).alias('month'))
+        ).cast({"total_requests": pl.Int64})
 
     def anonymize_user_agent(self):
         """Modifies the anonymized dataframe to have browser, device, and os names instead of full user agent."""
@@ -603,6 +610,7 @@ class ErddapLogParser:
     def export_data(self, output_dir=Path(os.getcwd()), export_all=False):
         """Exports the anonymized data to csv files that can be shared."""
         output_dir = Path(output_dir)
+        time_unit = self.temporal_resolution
         if not output_dir.exists():
             output_dir.mkdir(parents=True)
         timestamp = self.df["datetime"].max().strftime("%Y%m%d_%H%M%S_")
@@ -621,16 +629,16 @@ class ErddapLogParser:
                 self.anonymized.write_csv(
                     output_dir / f"{timestamp}anonymized_requests.csv"
                 )
+                if self.verbose:
+                    print(f"write file {output_dir}/{timestamp}anonymized_requests.csv")
         if len(previous_anon_files) != 0:
             self.df = df_full
         existing_loc_files = list(output_dir.glob("*aggregated_locations.csv"))
         if len(existing_loc_files) != 0:
-            existing_loc_files.sort()
-            latest_loc_file = existing_loc_files[-1]
-            old_locs = pl.read_csv(latest_loc_file, try_parse_dates=True)
+            old_locs = pl.read_csv(f"{str(output_dir)}/*aggregated_locations.csv")
             old_locs = old_locs.with_columns(
                 old_locs.select(
-                    pl.concat_str([pl.col("month"), pl.col("regionName"), pl.col("city")]).alias(
+                    pl.concat_str([pl.col(time_unit), pl.col("regionName"), pl.col("city")]).alias(
                         "month_region_city"
                     )
                 )
@@ -638,7 +646,7 @@ class ErddapLogParser:
             if not self.location.is_empty():
                 new_locs = self.location.with_columns(
                     self.location.select(
-                        pl.concat_str([pl.col("month"), pl.col("regionName"), pl.col("city")]).alias(
+                        pl.concat_str([pl.col(time_unit), pl.col("regionName"), pl.col("city")]).alias(
                             "month_region_city"
                         )
                     )
@@ -658,15 +666,18 @@ class ErddapLogParser:
                 )
                 meta = meta.with_columns(total_requests=totals["total_requests"])
                 self.location = meta[
-                    ["month", "countryCode", "regionName", "city", "total_requests"]
+                    [time_unit, "countryCode", "regionName", "city", "total_requests"]
                 ]
         if not self.location.is_empty():
-            self.location.write_csv(output_dir / f"{timestamp}aggregated_locations.csv")
-        existing_loc_files = list(output_dir.glob("*aggregated_locations.csv"))
-        if len(existing_loc_files) > 1:
-            existing_loc_files.sort()
-            for old_file in existing_loc_files[:-1]:
-                os.unlink(str(old_file))
+            df = self.location
+            dates = df[time_unit].unique()
+
+            for date in dates:
+                df_sub = df.filter(pl.col(time_unit) == date)
+                fn = output_dir / f"{str(date)}_aggregated_locations.csv"
+                df_sub.write_csv(fn)
+                if self.verbose:
+                    print(f"write file {fn}")
 
     def undo_filter(self):
         """Reset to unfiltered DataFrame."""

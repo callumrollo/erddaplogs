@@ -2,16 +2,33 @@ import polars as pl
 from erddaplogs.logparse import ErddapLogParser
 import erddaplogs.plot_functions as plot_functions
 import os
+import shutil
 from pathlib import Path
-
 cwd = Path(os.getcwd())
-existing_output_files = list(cwd.glob("*anonymized_requests.csv")) + list(cwd.glob("*aggregated_locations.csv"))
-if len(existing_output_files) > 1:
-    for old_file in existing_output_files:
-        os.unlink(str(old_file))
+
+
+def remove_processed_files(tgt=cwd):
+    existing_output_files = list(tgt.glob("*anonymized_requests.csv")) + list(tgt.glob("*aggregated_locations.csv"))
+    if len(existing_output_files) > 0:
+        for old_file in existing_output_files:
+            os.unlink(str(old_file))
+
+
+for sub_name in ["sub_0", "sub_1"]:
+    sub_dir = Path("example_data/nginx_example_logs") / sub_name
+    if not sub_dir.exists():
+        sub_dir.mkdir()
+for infile in Path("example_data/nginx_example_logs/").glob("*access*"):
+    fn = infile.name
+    if int(fn[-1]) >= 5:
+        sub = "sub_0"
+    else:
+        sub = "sub_1"
+    shutil.copy(f"example_data/nginx_example_logs/{fn}", f"example_data/nginx_example_logs/{sub}/{fn}")
 
 
 def test_parser():
+    remove_processed_files()
     parser = ErddapLogParser()
     nginx_logs_dir = "example_data/nginx_example_logs/"
     parser.load_nginx_logs(nginx_logs_dir)
@@ -32,6 +49,24 @@ def test_parser():
     assert df['erddap_request_type'].is_null().sum() / df.shape[0] < 0.01
     assert 0.2 < df['dataset_id'].is_null().sum() / df.shape[0] < 0.3
     df.write_parquet("example_data/df_example.pqt")
+
+
+def test_sequential_process():
+    out = Path("example_output")
+    remove_processed_files(tgt=out)
+    for sub_dir in ["sub_0", "sub_1"]:
+        parser = ErddapLogParser()
+        parser.temporal_resolution='day'
+        nginx_logs_dir = f"example_data/nginx_example_logs/{sub_dir}"
+        parser.load_nginx_logs(nginx_logs_dir)
+        parser.subset_df(1000)
+        parser.get_ip_info(num_ips=3)
+        parser.parse_datasets_xml("example_data/datasets.xml")
+        parser.parse_columns()
+        parser.export_data(output_dir=out)
+
+    assert len(list(out.glob("*aggregated_locations.csv"))) == 9
+    assert len(list(out.glob("*anonymized_requests.csv"))) == 2
 
 
 def test_anonymized_data():
