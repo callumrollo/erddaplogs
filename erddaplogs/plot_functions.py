@@ -71,13 +71,12 @@ def _plot_popularity_bar(ax, df, col_name, rows):
     DataFrame
         subsetted DataFrame containing only the information to be plotted
     """
-    counts = Counter(df[col_name].to_list()).most_common()
+    counts = Counter(df[col_name].drop_nulls().to_list()).most_common()
     if None in counts[0]:
         counts = counts[1:]
     names, counts = list(map(list, zip(*counts)))
     df_counts = (
         pl.DataFrame({col_name: names, "counts": counts})[:rows]
-        .fill_null("unknown")
     )
     ax.barh(
         np.arange(len(df_counts)),
@@ -170,9 +169,12 @@ def plot_bytes(df, days=3):
     """
     daily_bytes = df.group_by_dynamic("datetime", every=f"{days}d").agg(
         pl.col("bytes_sent").sum()
-    )
+    ).with_columns((pl.col('datetime').cast(pl.String).str.slice(0, 10)).alias('day'))
     fig, ax = plt.subplots(figsize=(8, 6))
-    ax.bar(daily_bytes["datetime"], daily_bytes["bytes_sent"] / 1024**3)
+    if daily_bytes.shape[0] < 30:
+        ax.bar(daily_bytes["day"], daily_bytes["bytes_sent"] / 1024 ** 3)
+    else:
+        ax.bar(daily_bytes["datetime"], daily_bytes["bytes_sent"] / 1024 ** 3)
     ax.set(ylabel=f"GB sent per {days} days")
     ax.grid(axis='y')
     ax.tick_params(axis='x', labelrotation=45)
