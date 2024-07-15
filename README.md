@@ -4,7 +4,7 @@
 
 ![python versions](https://img.shields.io/pypi/pyversions/erddaplogs.svg)
 
-![pypi](https://badge.fury.io/py/erddaplogs.svg) ![anaconda badge](https://anaconda.org/conda-forge/erddaplogs/badges/version.svg) 
+[![pypi](https://badge.fury.io/py/erddaplogs.svg)](https://pypi.org/project/erddaplogs/) [![anaconda badge](https://anaconda.org/conda-forge/erddaplogs/badges/version.svg)](https://anaconda.org/conda-forge/erddaplogs)
 
 
 A package for analysing traffic to an ERDDAP server by parsing nginx and apache logs.
