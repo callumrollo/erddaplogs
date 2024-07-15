@@ -4,7 +4,7 @@
 
 ![python versions](https://img.shields.io/pypi/pyversions/erddaplogs.svg)
 
-![pypi](https://badge.fury.io/py/erddaplogs.svg)
+![pypi](https://badge.fury.io/py/erddaplogs.svg) ![anaconda badge](https://anaconda.org/conda-forge/erddaplogs/badges/version.svg) 
 
 
 A package for analysing traffic to an ERDDAP server by parsing nginx and apache logs.
@@ -52,13 +52,13 @@ from erddaplogs.logparse import ErddapLogParser
 parser = ErddapLogParser()
 parser.load_nginx_logs("example_data/nginx_example_logs/") # replace with the path to your logs
 parser.parse_datasets_xml("example_data/datasets.xml") # replace with the path to your xml, or remove this line
-parser.temporal_resolution = 'day' # can be any one of 'day', 'month' or 'year'. Defaults to 'month'
+parser.temporal_resolution = 'month' # can be any one of 'day', 'month' or 'year'. Defaults to 'month'
 parser.filter_non_erddap()
 parser.filter_spam()
 parser.filter_locales()
 parser.filter_user_agents()
 parser.filter_common_strings()
-parser.get_ip_info()
+parser.get_ip_info() # fetches info on ip addresses
 parser.filter_organisations()
 parser.parse_columns()
 parser.export_data(output_dir=".") # Put the path to the output dir here. Preferably somewhere your ERDDAP can read
@@ -66,13 +66,17 @@ parser.export_data(output_dir=".") # Put the path to the output dir here. Prefer
 
 This will read nginx logs from the user specified directory and write files `<timestamp>_anonymized_requests.csv` and `<timestamp>_aggregated_locations.csv` with anonymized requests and aggregated location data respectively. 
 
-`timestamp` will be YYYY YYYY-MM or YYYY-MM-DD depending on whether the user has set `temporal_resolution` to year, month or day. **NB** you must retain logs for at least as long as your temporal resolution! If you only retain logs for 3 days, but aggregate data by month, some data will be lost.
+`timestamp` will be YYYY YYYY-MM or YYYY-MM-DD depending on whether the user has set `temporal_resolution` to year, month or day. 
 
-ErddapLogParser can be run on a static directory of logs or as a cron job e.g. once per day. If run repeatedly, it will create a new files for `anonymized_requests` and `aggregated_locations` using only requests that have been received since the last timestamp.
+ErddapLogParser can be run on a static directory of logs as a cron job e.g. once per day. If run repeatedly, it will create a new files for `anonymized_requests` and `aggregated_locations` using only requests that have been received since the last timestamp (by default, the first day of the current month).
 
 To re-analyze all the input requests, first delete the output files in `output_dir` then re-run.
 
-Optionally, the resulting anonymized data can be shared on your ERDDAP in two datasets `requests` and `locations`. To do this, add the contents of the example xml files `requests.xml` and `locations.xml` from the `example_data` directory to your `datasets.xml`. Make sure to update the entries for **fileDir**, **institution** and date variable, which may be month, day or year. The other fields can remain as-is.
+All of the `filter_` functions are optional, and most take additional kwargs to fine-tune their behaviour.
+
+### Share results via ERDDAP
+
+Optionally, the resulting anonymized data can be shared on your ERDDAP in two datasets `requests` and `locations`. To do this, add the contents of the example xml files `requests.xml` and `locations.xml` from the `example_data` directory to your `datasets.xml`. Make sure to update the values of **fileDir**, **institution** and change the date variable if not using the default monthly aggregation. The other fields can remain as-is.
 
 You can see what the resulting stats look like on the VOTO ERDDAP server:
 
@@ -100,6 +104,13 @@ A second notebook called `analyze_anonymized_usage` shows some examples of plott
 
 If you don't have your own ERDDAP logs to hand, you can use the example data in `example_data/nginx_example_logs`. This is anonymized data from a production ERDDAP server [erddap.observations.voiceoftheocean.org](https://erddap.observations.voiceoftheocean.org/erddap). The ip addresses have been randomly generated, as have the user agents. All subscription emails have been replaced with fake@example.com
 
+### Logging best practices
+
+- The log loading function can be run sequentially over a series of directories if you have logs in sevaral places.
+- You must retain logs for at least as long as your temporal resolution! If you only retain logs for 3 days, but aggregate data by month, some data will be lost.
+- The default of many servers is to delete logs after a short period of time. Check the settings of logrotate in e.g. `/etc/logrotate.d/nginx`
+- Check your institution's policies on log retention
+- If you set a very fine temporal resolution like `day` on a server that receives little traffic, you may make enable partial re-identification, linking e.g. the full request url with the city/region of the user who sent it.
 
 ### License
 
