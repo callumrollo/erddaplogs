@@ -71,9 +71,9 @@
     <dataVariable>
         <sourceName>bytes_sent</sourceName>
         <destinationName>bytes_sent</destinationName>
-        <dataType>int</dataType>
+        <dataType>long</dataType>
         <addAttributes>
-            <att name="_FillValue" type="int">2147483647</att>
+            <att name="_FillValue" type="int">9223372036854775807</att>
             <att name="ioos_category">Unknown</att>
             <att name="long_name">bytes_sent</att>
         </addAttributes>
