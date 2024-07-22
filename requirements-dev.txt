@@ -1,5 +1,4 @@
 cartopy
-pandas
 matplotlib
 jupyterlab
 requests
