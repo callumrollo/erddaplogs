@@ -3,6 +3,7 @@ from erddaplogs.logparse import ErddapLogParser
 import erddaplogs.plot_functions as plot_functions
 import os
 import shutil
+import xml.etree.ElementTree as ET
 from pathlib import Path
 cwd = Path(os.getcwd())
 
@@ -44,6 +45,9 @@ def test_parser():
     parser.parse_columns()
     df = parser.df
     assert len(df['dataset_type'].unique()) > 2
+    assert len(df['dataset_id'].unique()) > 300
+    assert len(df['request_kwargs'].unique()) > 100
+    assert 100 < len(df['url'].unique()) - len(df['base_url'].unique()) < 150
     assert df['erddap_request_type'].is_null().sum() / df.shape[0] < 0.01
     assert 0.2 < df['dataset_id'].is_null().sum() / df.shape[0] < 0.3
     df.write_parquet("example_data/df_example.pqt")
@@ -93,6 +97,13 @@ def test_anonymized_data():
         assert blocked_col not in parser.anonymized.columns
     assert parser.anonymized['ip_id'].dtype == pl.String
     assert not set(parser.location.columns).difference(['month', 'countryCode', 'regionName', 'city', 'total_requests'])
+    tree = ET.parse(Path("example_data/requests.xml"))
+    root = tree.getroot()
+    variables = ['month']
+    for child in root:
+        if child.tag == "dataVariable":
+            variables.append(child[0].text)
+    assert not set(parser.anonymized.columns).difference(variables)
 
 
 def test_plots():
