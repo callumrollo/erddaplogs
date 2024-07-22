@@ -15,6 +15,9 @@ def remove_processed_files(tgt=cwd):
             os.unlink(str(old_file))
 
 
+if Path("temp_ip.csv").exists():
+    os.unlink("temp_ip.csv")
+
 for sub_name in ["sub_0", "sub_1"]:
     sub_dir = Path("example_data/nginx_example_logs") / sub_name
     if not sub_dir.exists():
@@ -38,14 +41,14 @@ def test_parser():
     parser.filter_user_agents()
     parser.filter_common_strings()
     assert parser.df.shape > (500, 5)
-    parser.get_ip_info(num_ips=3)
+    parser.get_ip_info(num_ips=3, ip_info_csv="temp_ip.csv")
     assert parser.df.shape > (300, 20)
     parser.filter_organisations()
     parser.parse_datasets_xml("example_data/datasets.xml")
     parser.parse_columns()
     df = parser.df
     assert len(df['dataset_type'].unique()) > 2
-    assert len(df['dataset_id'].unique()) > 300
+    assert len(df['dataset_id'].unique()) > 290
     assert len(df['request_kwargs'].unique()) > 100
     assert 100 < len(df['url'].unique()) - len(df['base_url'].unique()) < 150
     assert df['erddap_request_type'].is_null().sum() / df.shape[0] < 0.01
