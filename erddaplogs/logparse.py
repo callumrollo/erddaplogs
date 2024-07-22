@@ -1,4 +1,3 @@
-import datetime
 import os
 from copy import copy
 from pathlib import Path
@@ -12,6 +11,7 @@ import xml.etree.ElementTree as ET
 _date_format_dict = {'day': '%Y-%m-%d',
                      'month': '%Y-%m',
                      'year': '%Y', }
+
 
 def _load_nginx_logs(nginx_logs_dir, wildcard_fname):
     """
@@ -197,46 +197,89 @@ def _parse_columns(df):
         requests DataFrame with additional information, suitable for plotting
     """
     df = df.with_columns(pl.col("country").fill_null("unknown"))
-    df_parts = df["url"].to_pandas().str.replace(" ", "").str.split("?", expand=True)
+    df = df.with_columns(pl.col('url').str.replace(" ", ""))
     df = df.with_columns(
-        base_url=df_parts[0].str.split(".", expand=True)[0].astype(str).values
-    )
-    url_parts = df["base_url"].to_pandas().str.split("/", expand=True)
-    url_parts["protocol"] = ""
+        pl.col("url")
+        .str.split_exact("?", 2)
+        .struct.rename_fields(["base_url", "request_kwargs"])
+        .alias("fields")
+    ).unnest("fields")
+    df = df.with_columns(
+        pl.col("base_url")
+        .str.split_exact("/", 3)
+        .struct.rename_fields(["blank", "root", "first_unsplit", "dataset_id_filetype"])
+        .alias("fields")
+    ).unnest("fields")
+    
+    df = df.with_columns(
+        pl.col("first_unsplit")
+        .str.split_exact(".", 2)
+        .struct.rename_fields(["first", "postdot"])
+        .alias("fields")
+    ).unnest("fields")
+
     request_types = ['tabledap', 'subscriptions', 'info', 'files', 'legal', 'convert',
                      'griddap', 'categorize', 'index', 'dataProviderForm', 'metadata',
-                     'information', 'status', 'search', 'slidesorter', 'rest', 'sos', 'wcs'
+                     'information', 'status', 'search', 'slidesorter', 'rest', 'sos', 'wcs',
                      'wms', 'dataProviderForm', 'rss', 'outOfDateDatasets', 'sitemap',
-                     'download', 'images', 'public', 'opensearch1.1', 'logout', 'setDatasetFlag']
+                     'download', 'images', 'public', 'opensearch1', 'logout', 'setDatasetFlag',]
+
+    df = df.with_columns(erddap_request_type=pl.lit(None))
     for protocol in request_types:
-        url_parts.loc[url_parts[2] == protocol, "protocol"] = protocol
-    url_parts.loc[url_parts[2].str[:5] == 'login', "protocol"] = 'login'
-    url_parts.loc[url_parts[2].str[:7] == 'version', "protocol"] = 'version'
-    url_parts.loc[url_parts[2].str[:16] == 'dataProviderForm', "protocol"] = 'dataProviderForm'
-    url_parts["dataset_id"] = url_parts[3]
-    df = df.with_columns(erddap_request_type=url_parts["protocol"].astype(str).values)
-    df = df.with_columns(dataset_id=url_parts["dataset_id"].astype(str).values)
+        df = df.with_columns(
+            erddap_request_type=pl.when(pl.col("first") == protocol)
+            .then(pl.col("first"))
+            .otherwise(pl.col("erddap_request_type"))
+        )
     df = df.with_columns(
-        dataset_id=pl.when(pl.col("erddap_request_type").is_null())
-        .then(None)
-        .otherwise(pl.col("dataset_id"))
-    )
-    df = df.with_columns(request_kwargs=df_parts[1].astype(str).values)
-    df = df.with_columns(
-        file_type=df_parts[0].str.split(".", expand=True)[1].astype(str).values
+        erddap_request_type=pl.when(pl.col("first").str.slice(0, 5) == "login")
+        .then(pl.lit("login"))
+        .otherwise(pl.col("erddap_request_type"))
     )
     df = df.with_columns(
-        user_agent_base=df["user_agent"]
-        .to_pandas()
-        .str.split(" ", expand=True)[0]
-        .str.split("/", expand=True)[0]
-        .values
+        erddap_request_type=pl.when(pl.col("first").str.slice(0, 7) == "version")
+        .then(pl.lit("version"))
+        .otherwise(pl.col("erddap_request_type"))
     )
-    ip_grid = df["ip"].to_pandas().str.split(".", expand=True)
-    ip_group = ip_grid[0] + "." + ip_grid[1]
-    ip_subnet = ip_grid[0] + "." + ip_grid[1] + "." + ip_grid[2]
-    df = df.with_columns(ip_group=ip_group.values)
-    df = df.with_columns(ip_subnet=ip_subnet.values)
+    df = df.with_columns(
+        erddap_request_type=pl.when(pl.col("first").str.slice(0, 16) == "dataProviderForm")
+        .then(pl.lit("dataProviderForm"))
+        .otherwise(pl.col("erddap_request_type"))
+    )
+
+    # get file type and dataset id
+    df = df.with_columns(
+        pl.col("dataset_id_filetype")
+        .str.split_exact(".", 2)
+        .struct.rename_fields(["dataset_id", "file_type"])
+        .alias("fields")
+    ).unnest("fields")
+    
+    # extract grouped ip addresses
+    df = df.with_columns(
+        pl.col("ip")
+        .str.split_exact(".", 2, inclusive=True)
+        .struct.rename_fields(["ip_0", "ip_1", "ip_2", "ip_3"])
+        .alias("fields")
+    ).unnest("fields")
+    
+    df = df.with_columns(
+        pl.col("ip")
+        .str.split_exact(".", 2)
+        .struct.rename_fields(["ip_0_nodot", "ip_1_nodot", "ip_2_nodot", "ip_3_nodot"])
+        .alias("fields")
+    ).unnest("fields")
+    
+    df = df.with_columns(pl.concat_str(["ip_0", "ip_1", "ip_2_nodot"]).alias('ip_subnet'))
+    df = df.with_columns(pl.concat_str(["ip_0", "ip_1_nodot"]).alias('ip_group'))
+    
+    # remove junk columns and sortby time
+    junk_columns = ["blank", "root", "first", "first_unsplit", "dot", "rest", "postdot", "junk", "ip_0", "ip_1", "ip_2",
+                    "ip_3", "ip_0_nodot", "ip_1_nodot", "ip_2_nodot", "ip_3_nodot", "dataset_id_filetype"]
+    for junk_col in junk_columns:
+        if junk_col in df.columns:
+            df = df.drop([junk_col])
+
     df = df.sort(by="datetime")
 
     return df
@@ -284,6 +327,12 @@ def _parse_language_data(df):
         .struct.rename_fields(["blank_noslash", "root_noslash", "first_noslash", "rest_noslash"])
         .alias("fields")
     ).unnest("fields")
+    df = df.with_columns(
+        pl.col("url")
+        .str.splitn("/", 4)
+        .struct.rename_fields(["blank_n", "root_n", "first_n", "rest_n"])
+        .alias("fields")
+    ).unnest("fields")
 
     potential_langauge_col = df['first_noslash'].to_numpy()
     corrected_language_col = df['first'].to_numpy()
@@ -301,12 +350,21 @@ def _parse_language_data(df):
     df = df.with_columns(language_code=language_code_col)
     df = df.with_columns(language=language_col)
     df = df.with_columns(first=corrected_language_col)
-    df = df.with_columns(pl.concat_str(["blank", "root", "first", "rest"]).alias('reconstruct'))
+    
+    df = df.with_columns(
+        erddap_request_type=pl.when(pl.col("rest_n").is_not_null())
+        .then(pl.lit("/") + pl.col("rest_n"))
+        .otherwise(pl.col("rest_n"))
+    )
+    
+    df = df.with_columns(pl.concat_str(["blank", "root", "first", "rest_n"], ignore_nulls=True).alias('url'))
 
     if "rest" in df.columns:
         df = df.drop(["blank", "root", "first", "rest"])
     if "rest_noslash" in df.columns:
         df = df.drop(["blank_noslash", "root_noslash", "first_noslash", "rest_noslash"])
+    if "rest_n" in df.columns:
+        df = df.drop(["blank_n", "root_n", "first_n", "rest_n"])
     return df
 
 
@@ -607,7 +665,7 @@ class ErddapLogParser:
         self.aggregate_location()
         self.anonymized = self.df.select(
             pl.selectors.matches(
-                f"^^ip$|^datetime$|^status_code$|^bytes_sent$|^erddap_request_type$|^dataset_type$|^dataset_id$|^file_type$|^url$|^user_agent$|^{self.temporal_resolution}$"
+                f"^^ip$|^datetime$|^status_code$|^bytes_sent$|^erddap_request_type$|^dataset_type$|^dataset_id$|^file_type$|^url$|^user_agent$|^base_url$|request_kwargs$|{self.temporal_resolution}$"
             )
         )
         self.anonymize_user_agent()
