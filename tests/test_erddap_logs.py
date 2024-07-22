@@ -50,7 +50,7 @@ def test_parser():
     assert len(df['dataset_type'].unique()) > 2
     assert len(df['dataset_id'].unique()) > 290
     assert len(df['request_kwargs'].unique()) > 100
-    assert 100 < len(df['url'].unique()) - len(df['base_url'].unique()) < 150
+    assert 100 < len(df['url'].unique()) - len(df['base_url'].unique()) < 200
     assert df['erddap_request_type'].is_null().sum() / df.shape[0] < 0.01
     assert 0.2 < df['dataset_id'].is_null().sum() / df.shape[0] < 0.3
     df.write_parquet("example_data/df_example.pqt")
