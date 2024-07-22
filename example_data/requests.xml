@@ -141,5 +141,23 @@
             <att name="long_name">OS</att>
         </addAttributes>
     </dataVariable>
+    <dataVariable>
+        <sourceName>base_url</sourceName>
+        <destinationName>base_url</destinationName>
+        <dataType>String</dataType>
+        <addAttributes>
+            <att name="ioos_category">Unknown</att>
+            <att name="long_name">OS</att>
+        </addAttributes>
+    </dataVariable>
+    <dataVariable>
+        <sourceName>request_kwargs</sourceName>
+        <destinationName>request_kwargs</destinationName>
+        <dataType>String</dataType>
+        <addAttributes>
+            <att name="ioos_category">Unknown</att>
+            <att name="long_name">OS</att>
+        </addAttributes>
+    </dataVariable>
 </dataset>
 
