@@ -4,7 +4,6 @@ channels:
 dependencies:
         - numpy
         - cartopy
-        - pandas
         - matplotlib
         - jupyterlab
         - requests
@@ -14,6 +13,5 @@ dependencies:
         - tqdm
         - pip
         - pip:
-            - apachelogs
             - pyarrow
             - user_agents

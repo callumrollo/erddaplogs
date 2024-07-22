@@ -24,9 +24,21 @@ classifiers = [
   "Programming Language :: Python :: 3.12",
 ]
 dynamic = [
-  "dependencies",
   "version",
 ]
+
+dependencies = [
+    "numpy<2",
+    "polars>=1.0.0",
+    "requests",
+    "pyarrow",
+    "user_agents",
+]
+
+[project.optional-dependencies]
+plotting = ["iso3166", "cartopy", "matplotlib"]
+test = ["iso3166", "cartopy", "matplotlib", "pytest"]
+
 [project.urls]
 documentation = "https://github.com/callumrollo/erddaplogs"
 homepage = "https://github.com/callumrollo/erddaplogs"
