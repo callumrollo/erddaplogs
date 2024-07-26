@@ -2,8 +2,8 @@ cartopy
 matplotlib
 jupyterlab
 requests
-polars>=1.0.0
-numpy<2
+polars>=1.1.0
+numpy
 pyarrow
 user_agents
 pre-commit
