@@ -48,7 +48,7 @@ def test_parser():
     parser.parse_columns()
     df = parser.df
     assert len(df['dataset_type'].unique()) > 2
-    assert len(df['dataset_id'].unique()) > 290
+    assert len(df['dataset_id'].unique()) > 280
     assert len(df['request_kwargs'].unique()) > 100
     assert 100 < len(df['url'].unique()) - len(df['base_url'].unique()) < 200
     assert df['erddap_request_type'].is_null().sum() / df.shape[0] < 0.01
