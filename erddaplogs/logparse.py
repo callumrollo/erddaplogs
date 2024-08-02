@@ -8,9 +8,12 @@ import requests
 import re
 import gzip
 import xml.etree.ElementTree as ET
-_date_format_dict = {'day': '%Y-%m-%d',
-                     'month': '%Y-%m',
-                     'year': '%Y', }
+
+_date_format_dict = {
+    "day": "%Y-%m-%d",
+    "month": "%Y-%m",
+    "year": "%Y",
+}
 
 
 def _load_nginx_logs(nginx_logs_dir, wildcard_fname):
@@ -79,8 +82,12 @@ def _load_nginx_logs(nginx_logs_dir, wildcard_fname):
         }
     )
 
-    df = df.filter(pl.col("status_code") != "NaN").with_columns(pl.col("status_code").cast(pl.Int64))
-    df = df.filter(pl.col("bytes_sent") != "NaN").with_columns(pl.col("bytes_sent").cast(pl.Int64))
+    df = df.filter(pl.col("status_code") != "NaN").with_columns(
+        pl.col("status_code").cast(pl.Int64)
+    )
+    df = df.filter(pl.col("bytes_sent") != "NaN").with_columns(
+        pl.col("bytes_sent").cast(pl.Int64)
+    )
     # convert timestamp to datetime
     df = df.with_columns(
         pl.col("datetime")
@@ -143,12 +150,16 @@ def _get_ip_info(df, ip_info_csv, download_new=True, num_new_ips=60, verbose=Fal
         )
     if download_new:
         if verbose:
-            unkown_ips = len(set(df['ip'].unique().to_list()).difference(set(df_ip['query'])))
+            unkown_ips = len(
+                set(df["ip"].unique().to_list()).difference(set(df_ip["query"]))
+            )
             if unkown_ips == 0:
                 print("No new ips to fetch!")
                 return df_ip
-            print(f"We have info on {len(df_ip)} addresses. Dataset contains {len(ip_counts)} address, of which "
-                  f"{unkown_ips} are not yet known")
+            print(
+                f"We have info on {len(df_ip)} addresses. Dataset contains {len(ip_counts)} address, of which "
+                f"{unkown_ips} are not yet known"
+            )
         fetched_ips = 0
         for ip, count in ip_counts:
             if ip not in df_ip["query"]:
@@ -198,7 +209,7 @@ def _parse_columns(df):
     """
     df = _correct_erddap_strings(df)
     df = df.with_columns(pl.col("country").fill_null("unknown"))
-    df = df.with_columns(pl.col('url').str.replace(" ", ""))
+    df = df.with_columns(pl.col("url").str.replace(" ", ""))
     df = df.with_columns(
         pl.col("url")
         .str.split_exact("?", 2)
@@ -211,7 +222,7 @@ def _parse_columns(df):
         .struct.rename_fields(["blank", "root", "first_unsplit", "dataset_id_filetype"])
         .alias("fields")
     ).unnest("fields")
-    
+
     df = df.with_columns(
         pl.col("first_unsplit")
         .str.split_exact(".", 2)
@@ -219,11 +230,37 @@ def _parse_columns(df):
         .alias("fields")
     ).unnest("fields")
 
-    request_types = ['tabledap', 'subscriptions', 'info', 'files', 'legal', 'convert',
-                     'griddap', 'categorize', 'index', 'dataProviderForm', 'metadata',
-                     'information', 'status', 'search', 'slidesorter', 'rest', 'sos', 'wcs',
-                     'wms', 'dataProviderForm', 'rss', 'outOfDateDatasets', 'sitemap',
-                     'download', 'images', 'public', 'opensearch1', 'logout', 'setDatasetFlag',]
+    request_types = [
+        "tabledap",
+        "subscriptions",
+        "info",
+        "files",
+        "legal",
+        "convert",
+        "griddap",
+        "categorize",
+        "index",
+        "dataProviderForm",
+        "metadata",
+        "information",
+        "status",
+        "search",
+        "slidesorter",
+        "rest",
+        "sos",
+        "wcs",
+        "wms",
+        "dataProviderForm",
+        "rss",
+        "outOfDateDatasets",
+        "sitemap",
+        "download",
+        "images",
+        "public",
+        "opensearch1",
+        "logout",
+        "setDatasetFlag",
+    ]
 
     df = df.with_columns(erddap_request_type=pl.lit(None))
     for protocol in request_types:
@@ -243,7 +280,9 @@ def _parse_columns(df):
         .otherwise(pl.col("erddap_request_type"))
     )
     df = df.with_columns(
-        erddap_request_type=pl.when(pl.col("first").str.slice(0, 16) == "dataProviderForm")
+        erddap_request_type=pl.when(
+            pl.col("first").str.slice(0, 16) == "dataProviderForm"
+        )
         .then(pl.lit("dataProviderForm"))
         .otherwise(pl.col("erddap_request_type"))
     )
@@ -255,7 +294,7 @@ def _parse_columns(df):
         .struct.rename_fields(["dataset_id", "file_type"])
         .alias("fields")
     ).unnest("fields")
-    
+
     # extract grouped ip addresses
     df = df.with_columns(
         pl.col("ip")
@@ -263,20 +302,39 @@ def _parse_columns(df):
         .struct.rename_fields(["ip_0", "ip_1", "ip_2", "ip_3"])
         .alias("fields")
     ).unnest("fields")
-    
+
     df = df.with_columns(
         pl.col("ip")
         .str.split_exact(".", 2)
         .struct.rename_fields(["ip_0_nodot", "ip_1_nodot", "ip_2_nodot", "ip_3_nodot"])
         .alias("fields")
     ).unnest("fields")
-    
-    df = df.with_columns(pl.concat_str(["ip_0", "ip_1", "ip_2_nodot"]).alias('ip_subnet'))
-    df = df.with_columns(pl.concat_str(["ip_0", "ip_1_nodot"]).alias('ip_group'))
-    
+
+    df = df.with_columns(
+        pl.concat_str(["ip_0", "ip_1", "ip_2_nodot"]).alias("ip_subnet")
+    )
+    df = df.with_columns(pl.concat_str(["ip_0", "ip_1_nodot"]).alias("ip_group"))
+
     # remove junk columns and sortby time
-    junk_columns = ["blank", "root", "first", "first_unsplit", "dot", "rest", "postdot", "junk", "ip_0", "ip_1", "ip_2",
-                    "ip_3", "ip_0_nodot", "ip_1_nodot", "ip_2_nodot", "ip_3_nodot", "dataset_id_filetype"]
+    junk_columns = [
+        "blank",
+        "root",
+        "first",
+        "first_unsplit",
+        "dot",
+        "rest",
+        "postdot",
+        "junk",
+        "ip_0",
+        "ip_1",
+        "ip_2",
+        "ip_3",
+        "ip_0_nodot",
+        "ip_1_nodot",
+        "ip_2_nodot",
+        "ip_3_nodot",
+        "dataset_id_filetype",
+    ]
     for junk_col in junk_columns:
         if junk_col in df.columns:
             df = df.drop([junk_col])
@@ -303,18 +361,84 @@ def _parse_language_data(df):
     """
     # langauge codes taken from the ERDDAP source code WEB-INF/classes/gov/noaa/pfel/erddap/util/TranslateMessages.java
 
-    language_codes = ["en", "bn", "zh-CN", "zh-TW", "cs", "da", "nl", "fi",
-                      "fr", "de", "el", "gu", "hi", "hu", "id", "ga", "it",
-                      "ja", "ko", "mr", "no", "pl", "pt",
-                      "pa", "ro", "ru", "es", "sw", "sv", "tl", "th",
-                      "tr", "uk", "ur", "vi"]
+    language_codes = [
+        "en",
+        "bn",
+        "zh-CN",
+        "zh-TW",
+        "cs",
+        "da",
+        "nl",
+        "fi",
+        "fr",
+        "de",
+        "el",
+        "gu",
+        "hi",
+        "hu",
+        "id",
+        "ga",
+        "it",
+        "ja",
+        "ko",
+        "mr",
+        "no",
+        "pl",
+        "pt",
+        "pa",
+        "ro",
+        "ru",
+        "es",
+        "sw",
+        "sv",
+        "tl",
+        "th",
+        "tr",
+        "uk",
+        "ur",
+        "vi",
+    ]
 
-    language_names = ["English", "Bengali", "Chinese-CN", "Chinese-TW", "Czech", "Danish", "Dutch", "Finnish",
-                      "French", "German", "Greek", "Gujarati", "Hindi", "Hungarian", "Indonesian", "Irish", "Italian",
-                      "Japanese", "Korean", "Marathi", "Norwegian", "Polish", "Portuguese",
-                      "Punjabi", "Romanian", "Russian", "Spanish", "Swahili", "Swedish", "Tagalog", "Thai",
-                      "Turkish", "Ukrainian", "Urdu", "Vietnamese"]
-    langauge_names_by_code = {code: name for code, name in zip(language_codes, language_names)}
+    language_names = [
+        "English",
+        "Bengali",
+        "Chinese-CN",
+        "Chinese-TW",
+        "Czech",
+        "Danish",
+        "Dutch",
+        "Finnish",
+        "French",
+        "German",
+        "Greek",
+        "Gujarati",
+        "Hindi",
+        "Hungarian",
+        "Indonesian",
+        "Irish",
+        "Italian",
+        "Japanese",
+        "Korean",
+        "Marathi",
+        "Norwegian",
+        "Polish",
+        "Portuguese",
+        "Punjabi",
+        "Romanian",
+        "Russian",
+        "Spanish",
+        "Swahili",
+        "Swedish",
+        "Tagalog",
+        "Thai",
+        "Turkish",
+        "Ukrainian",
+        "Urdu",
+        "Vietnamese",
+    ]
+    langauge_names_by_code = {
+        code: name for code, name in zip(language_codes, language_names)
+    }
 
     df = df.with_columns(
         pl.col("url")
@@ -325,7 +449,9 @@ def _parse_language_data(df):
     df = df.with_columns(
         pl.col("url")
         .str.split_exact("/", 3)
-        .struct.rename_fields(["blank_noslash", "root_noslash", "first_noslash", "rest_noslash"])
+        .struct.rename_fields(
+            ["blank_noslash", "root_noslash", "first_noslash", "rest_noslash"]
+        )
         .alias("fields")
     ).unnest("fields")
     df = df.with_columns(
@@ -335,9 +461,11 @@ def _parse_language_data(df):
         .alias("fields")
     ).unnest("fields")
 
-    potential_langauge_col = df['first_noslash'].to_numpy()
-    corrected_language_col = df['first'].to_numpy()
-    languages_present = set(df['first_noslash'].unique().to_numpy()).intersection(language_codes)
+    potential_langauge_col = df["first_noslash"].to_numpy()
+    corrected_language_col = df["first"].to_numpy()
+    languages_present = set(df["first_noslash"].unique().to_numpy()).intersection(
+        language_codes
+    )
     language_col = potential_langauge_col.copy()
     language_col[:] = "English"
     language_code_col = potential_langauge_col.copy()
@@ -346,19 +474,25 @@ def _parse_language_data(df):
     for language_code in languages_present:
         corrected_language_col[potential_langauge_col == language_code] = ""
         language_code_col[potential_langauge_col == language_code] = language_code
-        language_col[potential_langauge_col == language_code] = langauge_names_by_code[language_code]
+        language_col[potential_langauge_col == language_code] = langauge_names_by_code[
+            language_code
+        ]
 
     df = df.with_columns(language_code=language_code_col)
     df = df.with_columns(language=language_col)
     df = df.with_columns(first=corrected_language_col)
-    
+
     df = df.with_columns(
         erddap_request_type=pl.when(pl.col("rest_n").is_not_null())
         .then(pl.lit("/") + pl.col("rest_n"))
         .otherwise(pl.col("rest_n"))
     )
-    
-    df = df.with_columns(pl.concat_str(["blank", "root", "first", "rest_n"], ignore_nulls=True).alias('url'))
+
+    df = df.with_columns(
+        pl.concat_str(["blank", "root", "first", "rest_n"], ignore_nulls=True).alias(
+            "url"
+        )
+    )
 
     if "rest" in df.columns:
         df = df.drop(["blank", "root", "first", "rest"])
@@ -371,46 +505,48 @@ def _parse_language_data(df):
 
 def _fix_erddap_8859(erddap_str):
     """
-    Fixes strings ISO/IEC 8859-1 (latin1) that have been mangled by ERDDAP. 
+    Fixes strings ISO/IEC 8859-1 (latin1) that have been mangled by ERDDAP.
     ie the bottom half of https://en.wikipedia.org/wiki/ISO/IEC_8859-1
     This is a very ugly function made from trial and error. It fixes the common latin characters in datasets from ERDDAP
     ( à  á  â  ã  ä  å  æ  ç  è  é  ê  ë  ì  etc.) but will likely break on other input.
     """
-    # ERDDAP adds extra shift points for characters in the latter half of the table. I think because it makes 7 bit  
+    # ERDDAP adds extra shift points for characters in the latter half of the table. I think because it makes 7 bit
     # chars with 2 bytes(?) rather than the expected 8 bits.
-    if '\\u00c2' not in erddap_str and '\\u00c3' not in erddap_str:
+    if "\\u00c2" not in erddap_str and "\\u00c3" not in erddap_str:
         return erddap_str
     # We replace the two shift codes with unique symbols
-    if '\\u00c2' in erddap_str:
-        erddap_str = erddap_str.replace('\\u00c2', '𐆠')
-    if '\\u00c3' in erddap_str:
-        erddap_str = erddap_str.replace('\\u00c3', '𐆜')
+    if "\\u00c2" in erddap_str:
+        erddap_str = erddap_str.replace("\\u00c2", "𐆠")
+    if "\\u00c3" in erddap_str:
+        erddap_str = erddap_str.replace("\\u00c3", "𐆜")
     replacement_dict = {}
     replacement_dict_nopre = {}
     shift = 0
-    prefig = ''
+    prefig = ""
     for i in range(len(erddap_str)):
-        if erddap_str[i] == '𐆠':
+        if erddap_str[i] == "𐆠":
             shift = 0
-            prefig = '𐆠'
-        if erddap_str[i] == '𐆜':
-            shift = 2 ** 6
-            prefig = '𐆜'
+            prefig = "𐆠"
+        if erddap_str[i] == "𐆜":
+            shift = 2**6
+            prefig = "𐆜"
         # look for ERDDAP's ISO/IEC 8859-1 control sequences
-        if erddap_str[i] == '\\' and erddap_str[i+1] == 'u':
-            unicode_point = int(erddap_str[i+2:i+6], 16)
+        if erddap_str[i] == "\\" and erddap_str[i + 1] == "u":
+            unicode_point = int(erddap_str[i + 2 : i + 6], 16)
             new_str = hex(unicode_point + shift)
             if prefig:
-                replacement_dict[prefig + erddap_str[i:i+6]] = f'\\{new_str[1:]}'
+                replacement_dict[prefig + erddap_str[i : i + 6]] = f"\\{new_str[1:]}"
             else:
-                replacement_dict_nopre[prefig + erddap_str[i:i+6]] = f'\\{new_str[1:]}'
-            prefig = ''
+                replacement_dict_nopre[prefig + erddap_str[i : i + 6]] = (
+                    f"\\{new_str[1:]}"
+                )
+            prefig = ""
     # First replace the two character sequences, before the one character sequences
     for key, val in replacement_dict.items():
         erddap_str = erddap_str.replace(key, val)
     for key, val in replacement_dict_nopre.items():
         erddap_str = erddap_str.replace(key, val)
-    return erddap_str.encode('utf-8').decode('unicode-escape')
+    return erddap_str.encode("utf-8").decode("unicode-escape")
 
 
 def _correct_erddap_strings(df):
@@ -424,14 +560,19 @@ def _correct_erddap_strings(df):
         if datatype != pl.String:
             continue
         unique_strings = df[col].drop_nulls().unique().to_list()
-        if '\\u' not in ''.join(unique_strings):
+        if "\\u" not in "".join(unique_strings):
             continue
         for accent_str in unique_strings:
-            if '\\u' not in accent_str:
+            if "\\u" not in accent_str:
                 continue
             corr_str = _fix_erddap_8859(accent_str)
-            df = df.with_columns(replaced=pl.col(col).replace(accent_str, corr_str).alias(col)).drop(col).rename(
-                {'replaced': col})
+            df = (
+                df.with_columns(
+                    replaced=pl.col(col).replace(accent_str, corr_str).alias(col)
+                )
+                .drop(col)
+                .rename({"replaced": col})
+            )
     pl.disable_string_cache()
     return df
 
@@ -466,7 +607,7 @@ class ErddapLogParser:
         self.verbose = False
         self.original_total_requests = 0
         self.filter_name = None
-        self.temporal_resolution = 'month'
+        self.temporal_resolution = "month"
 
     def _update_original_total_requests(self):
         """Update the number of requests in the DataFrame."""
@@ -583,18 +724,18 @@ class ErddapLogParser:
 
     @_print_filter_stats
     def filter_spam(
-            self,
-            spam_strings=(
-                    ".env",
-                    "env.",
-                    ".php",
-                    ".git",
-                    "robots.txt",
-                    "phpinfo",
-                    "/config",
-                    "aws",
-                    ".xml",
-            ),
+        self,
+        spam_strings=(
+            ".env",
+            "env.",
+            ".php",
+            ".git",
+            "robots.txt",
+            "phpinfo",
+            "/config",
+            "aws",
+            ".xml",
+        ),
     ):
         """
         Filter out requests from non-visitors.
@@ -622,7 +763,7 @@ class ErddapLogParser:
 
     @_print_filter_stats
     def filter_common_strings(
-            self, strings=("/version", "favicon.ico", ".js", ".css", "/erddap/images")
+        self, strings=("/version", "favicon.ico", ".js", ".css", "/erddap/images")
     ):
         """Filter out non-data requests - requests for version, images, etc"""
         for string in strings:
@@ -672,7 +813,13 @@ class ErddapLogParser:
             .len()
             .fill_null("unknown")
             .rename({"len": "total_requests"})
-        ).cast({"total_requests": pl.Int64})[self.temporal_resolution, "countryCode", "regionName", "city", "total_requests"]
+        ).cast({"total_requests": pl.Int64})[
+            self.temporal_resolution,
+            "countryCode",
+            "regionName",
+            "city",
+            "total_requests",
+        ]
 
     def anonymize_user_agent(self):
         """Modifies the anonymized dataframe to have browser, device, and os names instead of full user agent."""
@@ -696,7 +843,9 @@ class ErddapLogParser:
     def anonymize_ip(self):
         """Replaces the ip address with a unique number identifier."""
         df = self.anonymized
-        df = df.with_columns((pl.col(self.temporal_resolution) + pl.col("ip")).alias('temporal_ip'))
+        df = df.with_columns(
+            (pl.col(self.temporal_resolution) + pl.col("ip")).alias("temporal_ip")
+        )
         unique_df = (
             pl.DataFrame({"temporal_ip": df.get_column("temporal_ip").unique()})
             .with_row_index()
@@ -704,19 +853,20 @@ class ErddapLogParser:
         )
         date_length = len(df[self.temporal_resolution][0])
         unique_df = unique_df.with_columns(
-            (pl.col('temporal_ip').str.slice(0, date_length) + '_' + pl.col("index")).alias("temporal_ip_id"),
-            (pl.col('temporal_ip').str.slice(date_length)).alias("ip")
-
+            (
+                pl.col("temporal_ip").str.slice(0, date_length) + "_" + pl.col("index")
+            ).alias("temporal_ip_id"),
+            (pl.col("temporal_ip").str.slice(date_length)).alias("ip"),
         )
         df = df.with_columns(
             pl.col("temporal_ip").map_elements(
-                lambda temporal_ip: unique_df.row(by_predicate=(pl.col("temporal_ip") == temporal_ip), named=True)[
-                    "temporal_ip_id"
-                ],
+                lambda temporal_ip: unique_df.row(
+                    by_predicate=(pl.col("temporal_ip") == temporal_ip), named=True
+                )["temporal_ip_id"],
                 return_dtype=pl.String,
             )
         )
-        df = df.drop('ip').rename({"temporal_ip": "ip_id"})
+        df = df.drop("ip").rename({"temporal_ip": "ip_id"})
         self.anonymized = df
 
     def anonymize_query(self):
@@ -742,11 +892,16 @@ class ErddapLogParser:
 
     def export_data(self, output_dir=Path(os.getcwd()), export_all=False):
         """Exports the anonymized data to csv files that can be shared."""
-        if self.temporal_resolution not in _date_format_dict.keys(): 
-            print(f"self.temporal resolution must be one of {_date_format_dict.keys()}. Can not export data")
+        if self.temporal_resolution not in _date_format_dict.keys():
+            print(
+                f"self.temporal resolution must be one of {_date_format_dict.keys()}. Can not export data"
+            )
             return
-        self.df = self.df.with_columns(self.df["datetime"].dt.strftime(_date_format_dict[self.temporal_resolution])
-                                       .alias(self.temporal_resolution))
+        self.df = self.df.with_columns(
+            self.df["datetime"]
+            .dt.strftime(_date_format_dict[self.temporal_resolution])
+            .alias(self.temporal_resolution)
+        )
         output_dir = Path(output_dir)
         time_unit = self.temporal_resolution
         if not output_dir.exists():
@@ -758,15 +913,19 @@ class ErddapLogParser:
             df_last = pl.read_csv(most_recent_file)
             if not df_last.is_empty():
                 last_request = df_last[self.temporal_resolution].max()
-                self.df = self.df.filter(pl.col(self.temporal_resolution) >= last_request)
+                self.df = self.df.filter(
+                    pl.col(self.temporal_resolution) >= last_request
+                )
 
         if not self.df.is_empty():
             self.anonymize_requests()
-            self.anonymized = self.anonymized.sort('datetime')
+            self.anonymized = self.anonymized.sort("datetime")
             if not self.anonymized.is_empty():
                 dates = self.anonymized[time_unit].unique().sort()
                 for date in dates:
-                    df_sub = self.anonymized.filter(pl.col(time_unit) == date).sort('datetime')
+                    df_sub = self.anonymized.filter(pl.col(time_unit) == date).sort(
+                        "datetime"
+                    )
                     fn = output_dir / f"{str(date)}_anonymized_requests.csv"
                     df_sub.write_csv(fn)
                     if self.verbose:
@@ -774,21 +933,28 @@ class ErddapLogParser:
         existing_loc_files = list(output_dir.glob("*aggregated_locations.csv"))
         if len(existing_loc_files) != 0:
             old_locs = pl.read_csv(f"{str(output_dir)}/*aggregated_locations.csv")
-            old_locs = old_locs.filter(pl.col(self.temporal_resolution) < self.df[self.temporal_resolution].min())
+            old_locs = old_locs.filter(
+                pl.col(self.temporal_resolution)
+                < self.df[self.temporal_resolution].min()
+            )
             if not old_locs.is_empty():
                 old_locs = old_locs.with_columns(
                     old_locs.select(
-                        pl.concat_str([pl.col(time_unit), pl.col("regionName"), pl.col("city")]).alias(
-                            "month_region_city"
-                        )
+                        pl.concat_str(
+                            [pl.col(time_unit), pl.col("regionName"), pl.col("city")]
+                        ).alias("month_region_city")
                     )
                 )
                 if not self.location.is_empty():
                     new_locs = self.location.with_columns(
                         self.location.select(
-                            pl.concat_str([pl.col(time_unit), pl.col("regionName"), pl.col("city")]).alias(
-                                "month_region_city"
-                            )
+                            pl.concat_str(
+                                [
+                                    pl.col(time_unit),
+                                    pl.col("regionName"),
+                                    pl.col("city"),
+                                ]
+                            ).alias("month_region_city")
                         )
                     )
                     df_vertical_concat = pl.concat(
@@ -799,14 +965,24 @@ class ErddapLogParser:
                         how="vertical",
                     )
                     totals = (
-                        df_vertical_concat.group_by("month_region_city").sum().sort("month_region_city")
+                        df_vertical_concat.group_by("month_region_city")
+                        .sum()
+                        .sort("month_region_city")
                     )
                     meta = (
-                        df_vertical_concat.group_by("month_region_city").first().sort("month_region_city")
+                        df_vertical_concat.group_by("month_region_city")
+                        .first()
+                        .sort("month_region_city")
                     )
                     meta = meta.with_columns(total_requests=totals["total_requests"])
                     self.location = meta[
-                        [time_unit, "countryCode", "regionName", "city", "total_requests"]
+                        [
+                            time_unit,
+                            "countryCode",
+                            "regionName",
+                            "city",
+                            "total_requests",
+                        ]
                     ]
         if not self.location.is_empty():
             df = self.location.sort(time_unit)
