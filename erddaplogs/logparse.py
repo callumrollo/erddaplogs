@@ -207,7 +207,6 @@ def _parse_columns(df):
     polars.DataFrame
         requests DataFrame with additional information, suitable for plotting
     """
-    df = _correct_erddap_strings(df)
     df = df.with_columns(pl.col("country").fill_null("unknown"))
     df = df.with_columns(pl.col("url").str.replace(" ", ""))
     df = df.with_columns(
@@ -500,80 +499,6 @@ def _parse_language_data(df):
         df = df.drop(["blank_noslash", "root_noslash", "first_noslash", "rest_noslash"])
     if "rest_n" in df.columns:
         df = df.drop(["blank_n", "root_n", "first_n", "rest_n"])
-    return df
-
-
-def _fix_erddap_8859(erddap_str):
-    """
-    Fixes strings ISO/IEC 8859-1 (latin1) that have been mangled by ERDDAP.
-    ie the bottom half of https://en.wikipedia.org/wiki/ISO/IEC_8859-1
-    This is a very ugly function made from trial and error. It fixes the common latin characters in datasets from ERDDAP
-    ( à  á  â  ã  ä  å  æ  ç  è  é  ê  ë  ì  etc.) but will likely break on other input.
-    """
-    # ERDDAP adds extra shift points for characters in the latter half of the table. I think because it makes 7 bit
-    # chars with 2 bytes(?) rather than the expected 8 bits.
-    if "\\u00c2" not in erddap_str and "\\u00c3" not in erddap_str:
-        return erddap_str
-    # We replace the two shift codes with unique symbols
-    if "\\u00c2" in erddap_str:
-        erddap_str = erddap_str.replace("\\u00c2", "𐆠")
-    if "\\u00c3" in erddap_str:
-        erddap_str = erddap_str.replace("\\u00c3", "𐆜")
-    replacement_dict = {}
-    replacement_dict_nopre = {}
-    shift = 0
-    prefig = ""
-    for i in range(len(erddap_str)):
-        if erddap_str[i] == "𐆠":
-            shift = 0
-            prefig = "𐆠"
-        if erddap_str[i] == "𐆜":
-            shift = 2**6
-            prefig = "𐆜"
-        # look for ERDDAP's ISO/IEC 8859-1 control sequences
-        if erddap_str[i] == "\\" and erddap_str[i + 1] == "u":
-            unicode_point = int(erddap_str[i + 2 : i + 6], 16)
-            new_str = hex(unicode_point + shift)
-            if prefig:
-                replacement_dict[prefig + erddap_str[i : i + 6]] = f"\\{new_str[1:]}"
-            else:
-                replacement_dict_nopre[prefig + erddap_str[i : i + 6]] = (
-                    f"\\{new_str[1:]}"
-                )
-            prefig = ""
-    # First replace the two character sequences, before the one character sequences
-    for key, val in replacement_dict.items():
-        erddap_str = erddap_str.replace(key, val)
-    for key, val in replacement_dict_nopre.items():
-        erddap_str = erddap_str.replace(key, val)
-    return erddap_str.encode("utf-8").decode("unicode-escape")
-
-
-def _correct_erddap_strings(df):
-    """
-    Fix a polars DataFrame with bad ISO8995 characters from ERDDAP
-    :param df: polars DataFrame
-    :return:  input DataFrame with correctly encoded strings
-    """
-    pl.enable_string_cache()
-    for col, datatype in df.schema.items():
-        if datatype != pl.String:
-            continue
-        unique_strings = df[col].drop_nulls().unique().to_list()
-        if "\\u" not in "".join(unique_strings):
-            continue
-        for accent_str in unique_strings:
-            if "\\u" not in accent_str:
-                continue
-            corr_str = _fix_erddap_8859(accent_str)
-            df = (
-                df.with_columns(
-                    replaced=pl.col(col).replace(accent_str, corr_str).alias(col)
-                )
-                .drop(col)
-                .rename({"replaced": col})
-            )
-    pl.disable_string_cache()
     return df
 
 
