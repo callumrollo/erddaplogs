@@ -7,11 +7,11 @@ dependencies:
         - matplotlib
         - jupyterlab
         - requests
-        - polars>1
-        - numpy<2
+        - polars>=1.1.0
+        - numpy
         - pre-commit
-        - tqdm
         - pip
+        - pytest
         - pip:
             - pyarrow
             - user_agents
