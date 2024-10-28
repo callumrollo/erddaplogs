@@ -5,7 +5,7 @@ requests
 polars>=1.1.0
 numpy
 pyarrow
-user_agents
+user-agents
 pre-commit
 pytest
 iso3166
