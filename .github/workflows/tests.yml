@@ -20,14 +20,12 @@ jobs:
         fetch-depth: 0
 
     - name: Setup Micromamba
-      uses: mamba-org/provision-with-micromamba@v16
-      with:
-        environment-file: false
+      uses: mamba-org/setup-micromamba@v1
 
     - name: Python ${{ matrix.python-version }}
       shell: bash -l {0}
       run: >
-        micromamba create --name TEST python=${{ matrix.python-version }} pytest --file  environment.yml --channel conda-forge
+        micromamba create --name TEST python=${{ matrix.python-version }} pip --file  requirements-dev.txt --channel conda-forge
         && micromamba activate TEST
         && python -m pip install -e . --no-deps --force-reinstall
 
