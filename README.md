@@ -110,7 +110,7 @@ If you don't have your own ERDDAP logs to hand, you can use the example data in 
 - You must retain logs for at least as long as your temporal resolution! If you only retain logs for 3 days, but aggregate data by month, some data will be lost.
 - The default of many servers is to delete logs after a short period of time. Check the settings of logrotate in e.g. `/etc/logrotate.d/nginx`
 - Check your institution's policies on log retention
-- If you set a very fine temporal resolution like `day` on a server that receives little traffic, you may make enable partial re-identification, linking e.g. the full request url with the city/region of the user who sent it.
+- If you set a very fine temporal resolution like `day` on a server that receives little traffic, you may enable partial re-identification, linking e.g. the full request url with the city/region of the user who sent it.
 
 ### License
 
