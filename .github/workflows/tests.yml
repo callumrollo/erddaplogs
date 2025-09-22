@@ -26,8 +26,7 @@ jobs:
         init-shell: bash
         create-args: >-
           python=${{ matrix.python-version }}
-          --file requirements.txt
-          --file requirements-dev.txt
+          --file environment.yml
           --channel conda-forge
 
     - name: Install library
